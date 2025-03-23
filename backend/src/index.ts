@@ -1,7 +1,8 @@
 import express, { Request, Response } from "express";
 import connectDB from "../config/db";
-import dotenv from "dotenv";
 import cors from "cors";
+import authRoute from "../routes/auth.route";
+import dotenv from "dotenv";
 
 dotenv.config();
 
@@ -18,6 +19,8 @@ app.use(cors());
 app.get("/", (req: Request, res: Response) => {
   res.send("Hello, TypeScript Server!");
 });
+
+app.use("/api/auth", authRoute);
 
 // Start Server
 app.listen(PORT, async () => {

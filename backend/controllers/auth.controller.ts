@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import User from "../models/user.model";
 import { handleAsync } from "../utils/handler";
-import { AuthRequest as ExtendedRequest } from "../middleware/auth.middleware";
+import { ExtendedRequest } from "../middleware/auth.middleware";
 
 // Secret keys (store in environment variables)
 const ACCESS_TOKEN_SECRET = process.env.SECRET_KEY ?? "SECRET_KEY";
@@ -10,7 +10,7 @@ const ACCESS_TOKEN_SECRET = process.env.SECRET_KEY ?? "SECRET_KEY";
 // Function to generate tokens
 const generateTokens = (userId: string) => {
   const accessToken = jwt.sign({ userId }, ACCESS_TOKEN_SECRET, {
-    expiresIn: "15m",
+    expiresIn: "2h",
   }); // Short expiry for security
 
   return accessToken;
@@ -61,10 +61,16 @@ export const signIn = handleAsync(
 // Get current user
 export const getCurrentUser = handleAsync(
   async (req: ExtendedRequest, res: Response, next: NextFunction) => {
-    if (!req.user) {
+    if (!req.userId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    res.status(200).json({ user: req.user });
+    // Fetch the user from the database using userId
+    const user = await User.findById(req.userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.status(200).json({ user });
   }
 );

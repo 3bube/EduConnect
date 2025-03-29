@@ -1,26 +1,33 @@
 import { Document, Types } from "mongoose";
 import { IQuestion } from "./question.interface";
 
+export interface IAssessmentAnswer {
+  questionId: Types.ObjectId;
+  selectedAnswer?: string;
+  selectedAnswers?: string[];
+  isCorrect: boolean;
+}
+
+export interface IAssessmentSubmission {
+  userId: Types.ObjectId;
+  answers: IAssessmentAnswer[];
+  score: number;
+  timeSpent: number;
+  submittedAt: Date;
+}
+
 export interface IAssessment extends Document {
-  id: string;
   title: string;
-  course: string;
+  course: Types.ObjectId;
   description: string;
-  type: string;
-  questions: IQuestion[];
-  performance: {
-    score: number;
-    timeSpent: number;
-  };
+  type: "quiz" | "exam" | "assignment";
+  questions: Types.ObjectId[];
   timeLimit: number;
   dueDate: string;
-  status: string;
-  score: number;
+  status: "not_started" | "in_progress" | "completed";
   passingScore: number;
   category: string;
-  submissions: {
-    userId: Types.ObjectId;
-    answers: any[];
-    timeSpent: number;
-  }[];
+  submissions: IAssessmentSubmission[];
+  createdBy: Types.ObjectId;
+  averageScore: number; // Virtual field
 }

@@ -1,10 +1,14 @@
 import { Response, NextFunction } from "express";
-import { AuthRequest } from "../middleware/auth.middleware";
+import { ExtendedRequest } from "../middleware/auth.middleware";
 import { handleAsync } from "../utils/handler";
 import Assessment from "../models/assessment.models";
+import Question from "../models/question.models";
+import { IAssessmentAnswer } from "../interface/assessments.interface";
+import { IQuestion } from "../models/question.models";
+import mongoose from "mongoose";
 
 export const GetAssessment = handleAsync(
-  async (req: AuthRequest, res: Response, next: NextFunction) => {
+  async (req: ExtendedRequest, res: Response, next: NextFunction) => {
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -51,7 +55,7 @@ export const GetAssessment = handleAsync(
 
 // Get assessment by id
 export const GetAssessmentById = handleAsync(
-  async (req: AuthRequest, res: Response, next: NextFunction) => {
+  async (req: ExtendedRequest, res: Response, next: NextFunction) => {
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -69,7 +73,7 @@ export const GetAssessmentById = handleAsync(
 
 // Start assessment
 export const StartAssessment = handleAsync(
-  async (req: AuthRequest, res: Response, next: NextFunction) => {
+  async (req: ExtendedRequest, res: Response, next: NextFunction) => {
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -87,34 +91,83 @@ export const StartAssessment = handleAsync(
 
 // Submit assessment
 export const SubmitAssessment = handleAsync(
-  async (req: AuthRequest, res: Response, next: NextFunction) => {
+  async (req: ExtendedRequest, res: Response, next: NextFunction) => {
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const { id } = req.params;
     const { answers, timeSpent } = req.body;
-    const assessment = await Assessment.findById(id);
+    const assessmentId = req.params.id;
+
+    const assessment = await Assessment.findById(assessmentId)
+      .populate<{
+        questions: (IQuestion & { _id: mongoose.Types.ObjectId })[];
+      }>("questions")
+      .exec();
 
     if (!assessment) {
       return res.status(404).json({ message: "Assessment not found" });
     }
 
-    // Save the submission details to the assessment or to a related model
-    assessment.submissions.push({ userId: req.user.id, answers, timeSpent });
+    // Calculate score based on correct answers
+    const gradedAnswers: IAssessmentAnswer[] = answers.map((answer: any) => {
+      const question = assessment.questions.find(
+        (q) => q._id.toString() === answer.questionId
+      );
+
+      if (!question) {
+        return {
+          questionId: new mongoose.Types.ObjectId(answer.questionId),
+          selectedAnswer: answer.selectedAnswer,
+          selectedAnswers: answer.selectedAnswers,
+          isCorrect: false,
+        };
+      }
+
+      const isCorrect =
+        question.type === "multiple-select"
+          ? arraysEqual(
+              question.correctAnswers || [],
+              answer.selectedAnswers || []
+            )
+          : question.correctAnswer === answer.selectedAnswer;
+
+      return {
+        questionId: question._id,
+        selectedAnswer: answer.selectedAnswer,
+        selectedAnswers: answer.selectedAnswers,
+        isCorrect,
+      };
+    });
+
+    const score =
+      (gradedAnswers.filter((a) => a.isCorrect).length /
+        assessment.questions.length) *
+      100;
+
+    // Add submission
+    assessment.submissions.push({
+      userId: req.user.id,
+      answers: gradedAnswers,
+      timeSpent,
+      score,
+      submittedAt: new Date(),
+    });
+
     await assessment.save();
 
     res.status(200).json({
-      success: true,
       message: "Assessment submitted successfully",
-      redirectUrl: `/assessments/${id}/results`,
+      score,
+      totalQuestions: assessment.questions.length,
+      correctAnswers: gradedAnswers.filter((a) => a.isCorrect).length,
     });
   }
 );
 
 // Get assessment results
 export const GetAssessmentResults = handleAsync(
-  async (req: AuthRequest, res: Response, next: NextFunction) => {
+  async (req: ExtendedRequest, res: Response, next: NextFunction) => {
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -129,3 +182,90 @@ export const GetAssessmentResults = handleAsync(
     res.status(200).json({ assessment });
   }
 );
+
+// Create assessment
+export const CreateAssessment = handleAsync(
+  async (req: ExtendedRequest, res: Response, next: NextFunction) => {
+    if (!req.userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    try {
+      const {
+        title,
+        description,
+        type,
+        questions: questionData,
+        timeLimit = 60,
+        dueDate,
+        status,
+        passingScore = 70,
+        category = "General",
+        courseId,
+      } = req.body;
+
+      console.log("course", courseId);
+      // First, create all the questions
+      const questionIds = [];
+
+      for (const question of questionData) {
+        // Transform options from {id, text} format to string array
+        const options = question.options.map((opt: any) => opt.text);
+
+        const newQuestion = new Question({
+          type: question.type,
+          text: question.text,
+          options,
+          correctAnswer: question.correctAnswer,
+          correctAnswers: question.correctAnswers,
+        });
+
+        const savedQuestion = await newQuestion.save();
+        questionIds.push(savedQuestion._id);
+      }
+
+      // Create the assessment with the question IDs
+      const assessment = new Assessment({
+        title,
+        description,
+        type,
+        questions: questionIds,
+        timeLimit,
+        dueDate,
+        status,
+        passingScore,
+        category,
+        course: courseId,
+      });
+
+      console.log("Assessments", assessment);
+
+      await assessment.save();
+
+      console.log("Saved");
+
+      res.status(201).json({
+        message: "Assessment created successfully",
+        assessment: {
+          id: assessment._id,
+          title: assessment.title,
+          description: assessment.description,
+          type: assessment.type,
+          status: assessment.status,
+          questionCount: questionIds.length,
+        },
+      });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  }
+);
+
+// Helper function to compare arrays
+function arraysEqual(a: any[], b: any[]) {
+  if (!Array.isArray(a) || !Array.isArray(b)) return false;
+  if (a.length !== b.length) return false;
+  return (
+    a.every((item) => b.includes(item)) && b.every((item) => a.includes(item))
+  );
+}

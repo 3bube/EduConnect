@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import Image from "next/image";
 import {
   Card,
@@ -10,10 +9,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -22,138 +20,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Clock, Search, Star, Users } from "lucide-react";
-
-// Mock data
-const courses = [
-  {
-    id: "course-1",
-    title: "Introduction to Mathematics",
-    description:
-      "Learn the fundamentals of mathematics including algebra, geometry, and calculus.",
-    category: "Mathematics",
-    level: "Beginner",
-    duration: "10 weeks",
-    rating: 4.8,
-    students: 1245,
-    instructor: "Dr. Smith",
-    price: 49.99,
-    image: "/placeholder.svg?height=180&width=320",
-    featured: true,
-    tags: ["algebra", "geometry", "calculus"],
-  },
-  {
-    id: "course-2",
-    title: "Advanced English Literature",
-    description:
-      "Explore classic and contemporary literature with in-depth analysis and critical thinking.",
-    category: "Language",
-    level: "Advanced",
-    duration: "12 weeks",
-    rating: 4.7,
-    students: 876,
-    instructor: "Prof. Johnson",
-    price: 59.99,
-    image: "/placeholder.svg?height=180&width=320",
-    featured: false,
-    tags: ["shakespeare", "poetry", "novels"],
-  },
-  {
-    id: "course-3",
-    title: "Physics 101",
-    description:
-      "Understand the basic principles of physics and how they apply to the world around us.",
-    category: "Science",
-    level: "Beginner",
-    duration: "8 weeks",
-    rating: 4.9,
-    students: 1532,
-    instructor: "Dr. Brown",
-    price: 54.99,
-    image: "/placeholder.svg?height=180&width=320",
-    featured: true,
-    tags: ["mechanics", "thermodynamics", "waves"],
-  },
-  {
-    id: "course-4",
-    title: "Introduction to Computer Science",
-    description:
-      "Learn programming fundamentals, algorithms, and data structures.",
-    category: "Technology",
-    level: "Beginner",
-    duration: "14 weeks",
-    rating: 4.9,
-    students: 2389,
-    instructor: "Prof. Davis",
-    price: 69.99,
-    image: "/placeholder.svg?height=180&width=320",
-    featured: true,
-    tags: ["programming", "algorithms", "data structures"],
-  },
-  {
-    id: "course-5",
-    title: "World History: Ancient Civilizations",
-    description:
-      "Explore the rise and fall of ancient civilizations and their impact on modern society.",
-    category: "History",
-    level: "Intermediate",
-    duration: "10 weeks",
-    rating: 4.6,
-    students: 987,
-    instructor: "Dr. Wilson",
-    price: 49.99,
-    image: "/placeholder.svg?height=180&width=320",
-    featured: false,
-    tags: ["ancient egypt", "mesopotamia", "greece", "rome"],
-  },
-  {
-    id: "course-6",
-    title: "Chemistry Basics",
-    description:
-      "Learn about atoms, molecules, reactions, and the fundamentals of chemistry.",
-    category: "Science",
-    level: "Beginner",
-    duration: "8 weeks",
-    rating: 4.7,
-    students: 1123,
-    instructor: "Prof. Martinez",
-    price: 54.99,
-    image: "/placeholder.svg?height=180&width=320",
-    featured: false,
-    tags: ["atoms", "periodic table", "reactions"],
-  },
-  {
-    id: "course-7",
-    title: "Business Management Fundamentals",
-    description:
-      "Develop essential skills for managing businesses and organizations effectively.",
-    category: "Business",
-    level: "Intermediate",
-    duration: "12 weeks",
-    rating: 4.5,
-    students: 1567,
-    instructor: "Dr. Thompson",
-    price: 64.99,
-    image: "/placeholder.svg?height=180&width=320",
-    featured: true,
-    tags: ["management", "leadership", "strategy"],
-  },
-  {
-    id: "course-8",
-    title: "Digital Marketing Essentials",
-    description:
-      "Master the tools and techniques for effective digital marketing campaigns.",
-    category: "Marketing",
-    level: "Beginner",
-    duration: "6 weeks",
-    rating: 4.8,
-    students: 2134,
-    instructor: "Prof. Garcia",
-    price: 59.99,
-    image: "/placeholder.svg?height=180&width=320",
-    featured: false,
-    tags: ["social media", "SEO", "content marketing"],
-  },
-];
+import { getAllCourses } from "@/api/course";
+import { useQuery } from "@tanstack/react-query";
+import type { Course, CourseResponse } from "@/api/course";
 
 const categories = [
   "All Categories",
@@ -169,40 +38,71 @@ const categories = [
 const levels = ["All Levels", "Beginner", "Intermediate", "Advanced"];
 
 export function CourseCatalog() {
+  const {
+    data: coursesData,
+    isLoading,
+    error,
+  } = useQuery<CourseResponse, Error>({
+    queryKey: ["courses"],
+    queryFn: getAllCourses,
+    staleTime: 60 * 60 * 1000, // 1 hour
+  });
+
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [selectedLevel, setSelectedLevel] = useState("All Levels");
   const [sortBy, setSortBy] = useState("popularity");
 
   // Filter courses based on search query, category, and level
-  const filteredCourses = courses.filter((course) => {
-    const matchesSearch =
-      course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      course.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      course.tags.some((tag) =>
-        tag.toLowerCase().includes(searchQuery.toLowerCase())
-      );
+  const filteredCourses =
+    coursesData?.courses?.filter((course: Course) => {
+      const matchesSearch =
+        course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        course.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        course.tags?.some((tag) =>
+          tag.toLowerCase().includes(searchQuery.toLowerCase())
+        );
 
-    const matchesCategory =
-      selectedCategory === "All Categories" ||
-      course.category === selectedCategory;
-    const matchesLevel =
-      selectedLevel === "All Levels" || course.level === selectedLevel;
+      const matchesCategory =
+        selectedCategory === "All Categories" ||
+        course.category === selectedCategory;
+      const matchesLevel =
+        selectedLevel === "All Levels" || course.level === selectedLevel;
 
-    return matchesSearch && matchesCategory && matchesLevel;
+      return matchesSearch && matchesCategory && matchesLevel;
+    }) ?? [];
+
+  // Sort courses based on selected criteria
+  const sortedCourses = [...filteredCourses].sort((a: Course, b: Course) => {
+    switch (sortBy) {
+      case "rating":
+        return (b.rating || 0) - (a.rating || 0);
+      case "students":
+        return (b.students?.length || 0) - (a.students?.length || 0);
+      case "newest":
+        return (
+          new Date(b.createdAt || 0).getTime() -
+          new Date(a.createdAt || 0).getTime()
+        );
+      default: // popularity
+        return (
+          (b.rating || 0) * (b.students?.length || 0) -
+          (a.rating || 0) * (a.students?.length || 0)
+        );
+    }
   });
 
-  // Sort courses based on selected sort option
-  const sortedCourses = [...filteredCourses].sort((a, b) => {
-    if (sortBy === "popularity") return b.students - a.students;
-    if (sortBy === "rating") return b.rating - a.rating;
-    if (sortBy === "price-low") return a.price - b.price;
-    if (sortBy === "price-high") return b.price - a.price;
-    return 0;
-  });
+  if (isLoading) {
+    return <div className="text-center py-8">Loading courses...</div>;
+  }
 
-  // Get featured courses
-  const featuredCourses = courses.filter((course) => course.featured);
+  if (error) {
+    return (
+      <div className="text-center py-8 text-red-500">
+        Error loading courses: {error.message}
+      </div>
+    );
+  }
 
   return (
     <div className="container px-4 py-8 sm:px-6 lg:px-8">
@@ -214,170 +114,128 @@ export function CourseCatalog() {
         </p>
       </div>
 
-      <Tabs defaultValue="all" className="mb-8">
-        <TabsList>
-          <TabsTrigger value="all">All Courses</TabsTrigger>
-          <TabsTrigger value="featured">Featured</TabsTrigger>
-          <TabsTrigger value="popular">Most Popular</TabsTrigger>
-          <TabsTrigger value="new">Newly Added</TabsTrigger>
-        </TabsList>
-
-        <div className="mt-6 flex flex-col gap-4 sm:flex-row">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search courses..."
-              className="pl-10"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-
-          <div className="flex gap-2">
-            <Select
-              value={selectedCategory}
-              onValueChange={setSelectedCategory}
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Category" />
-              </SelectTrigger>
-              <SelectContent>
-                {categories.map((category) => (
-                  <SelectItem key={category} value={category}>
-                    {category}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={selectedLevel} onValueChange={setSelectedLevel}>
-              <SelectTrigger className="w-[150px]">
-                <SelectValue placeholder="Level" />
-              </SelectTrigger>
-              <SelectContent>
-                {levels.map((level) => (
-                  <SelectItem key={level} value={level}>
-                    {level}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="w-[150px]">
-                <SelectValue placeholder="Sort by" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="popularity">Most Popular</SelectItem>
-                <SelectItem value="rating">Highest Rated</SelectItem>
-                <SelectItem value="price-low">Price: Low to High</SelectItem>
-                <SelectItem value="price-high">Price: High to Low</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+      <div className="mt-6 flex flex-col gap-4 sm:flex-row">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search courses..."
+            className="pl-10"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
         </div>
 
-        <TabsContent value="all" className="mt-6">
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {sortedCourses.map((course) => (
-              <CourseCard key={course.id} course={course} />
-            ))}
-          </div>
-
-          {sortedCourses.length === 0 && (
-            <div className="mt-8 text-center">
-              <h3 className="text-lg font-medium">No courses found</h3>
-              <p className="text-muted-foreground">
-                Try adjusting your search or filter criteria
-              </p>
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="featured" className="mt-6">
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {featuredCourses.map((course) => (
-              <CourseCard key={course.id} course={course} />
-            ))}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="popular" className="mt-6">
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {[...courses]
-              .sort((a, b) => b.students - a.students)
-              .slice(0, 8)
-              .map((course) => (
-                <CourseCard key={course.id} course={course} />
+        <div className="flex gap-2">
+          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Category" />
+            </SelectTrigger>
+            <SelectContent>
+              {categories.map((category) => (
+                <SelectItem key={category} value={category}>
+                  {category}
+                </SelectItem>
               ))}
-          </div>
-        </TabsContent>
+            </SelectContent>
+          </Select>
 
-        <TabsContent value="new" className="mt-6">
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {[...courses]
-              .sort(() => 0.5 - Math.random())
-              .slice(0, 4)
-              .map((course) => (
-                <CourseCard key={course.id} course={course} />
+          <Select value={selectedLevel} onValueChange={setSelectedLevel}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="Level" />
+            </SelectTrigger>
+            <SelectContent>
+              {levels.map((level) => (
+                <SelectItem key={level} value={level}>
+                  {level}
+                </SelectItem>
               ))}
-          </div>
-        </TabsContent>
-      </Tabs>
+            </SelectContent>
+          </Select>
+
+          <Select value={sortBy} onValueChange={setSortBy}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="popularity">Most Popular</SelectItem>
+              <SelectItem value="rating">Highest Rated</SelectItem>
+              <SelectItem value="students">Most Students</SelectItem>
+              <SelectItem value="newest">Newest</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {sortedCourses.map((course: Course) => (
+          <CourseCard key={course._id} course={course} />
+        ))}
+      </div>
+
+      {sortedCourses.length === 0 && (
+        <div className="mt-8 text-center">
+          <h3 className="text-lg font-medium">No courses found</h3>
+          <p className="text-muted-foreground">
+            Try adjusting your search or filter criteria
+          </p>
+        </div>
+      )}
     </div>
   );
 }
 
-function CourseCard({ course }: { course: any }) {
+function CourseCard({ course }: { course: Course }) {
+  const defaultImage = `https://source.unsplash.com/800x400/?${encodeURIComponent(course.category.toLowerCase())}`;
+
   return (
     <Card className="overflow-hidden">
-      <div className="aspect-video w-full">
+      <div className="aspect-video w-full relative">
         <Image
-          src={course.image || "/placeholder.svg"}
+          src={course.image || defaultImage}
           alt={course.title}
-          width={320}
-          height={180}
-          className="h-full w-full object-cover"
+          fill
+          className="object-cover"
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
         />
       </div>
-      <CardHeader className="p-4">
+      <CardHeader className="space-y-2">
         <div className="flex items-start justify-between">
           <div>
-            <Badge variant="outline" className="mb-2">
-              {course.category}
-            </Badge>
             <CardTitle className="line-clamp-1 text-lg">
               {course.title}
             </CardTitle>
           </div>
-          {course.featured && <Badge variant="secondary">Featured</Badge>}
         </div>
         <CardDescription className="line-clamp-2">
           {course.description}
         </CardDescription>
-      </CardHeader>
-      <CardContent className="p-4 pt-0">
-        <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-          <div className="flex items-center">
-            <Star className="mr-1 h-4 w-4 fill-yellow-400 text-yellow-400" />
-            <span className="font-medium">{course.rating}</span>
+        <div className="flex items-center gap-4 text-sm">
+          <div className="flex items-center text-muted-foreground">
+            <Star className="mr-1 h-4 w-4" />
+            {course.rating}
           </div>
           <div className="flex items-center text-muted-foreground">
             <Users className="mr-1 h-4 w-4" />
-            {course.students} students
+            {course.students.length} students
           </div>
           <div className="flex items-center text-muted-foreground">
             <Clock className="mr-1 h-4 w-4" />
             {course.duration}
           </div>
-          <div className="flex items-center">
-            <Badge variant="outline">{course.level}</Badge>
-          </div>
         </div>
+        <div className="flex flex-wrap gap-2">
+          {course.tags.slice(0, 3).map((tag) => (
+            <Badge key={tag} variant="secondary">
+              {tag}
+            </Badge>
+          ))}
+        </div>
+      </CardHeader>
+      <CardContent>
         <div className="flex items-center justify-between">
           <span className="text-lg font-bold">${course.price}</span>
           <Button asChild>
-            <Link href={`/courses/${course.id}`}>View Course</Link>
+            <a href={`/courses/${course._id}`}>View Course</a>
           </Button>
         </div>
       </CardContent>

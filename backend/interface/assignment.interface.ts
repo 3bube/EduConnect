@@ -8,7 +8,7 @@ export interface IAssignment extends Document {
   courseId: string;
   description: string;
   dueDate: string;
-  status: "pending" | "completed" | "late";
+  status: "not_started" | "in_progress" | "completed" | "late";
   priority: "high" | "medium" | "low";
   type: "quiz" | "essay" | "report" | "project";
   instructions: string;
@@ -20,7 +20,7 @@ export interface IAssignment extends Document {
   submissionType: "file" | "text";
   maxScore: number;
   weight: string;
-  instructor: string;
+  instructor: { type: Types.ObjectId; ref: "User" };
   createdAt: string;
   updatedAt: string;
   submission: null | {

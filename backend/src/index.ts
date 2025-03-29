@@ -2,14 +2,14 @@ import express, { Request, Response } from "express";
 import connectDB from "../config/db";
 import cors from "cors";
 import authRoute from "../routes/auth.route";
+import courseRoute from "../routes/course.route";
+import assessmentsRoute from "../routes/assessments.route";
 import dotenv from "dotenv";
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT ?? 5000;
-
-// Connect to MongoDB
 
 // Middleware
 app.use(express.json());
@@ -21,6 +21,8 @@ app.get("/", (req: Request, res: Response) => {
 });
 
 app.use("/api/auth", authRoute);
+app.use("/api/courses", courseRoute);
+app.use("/api/assessments", assessmentsRoute);
 
 // Start Server
 app.listen(PORT, async () => {

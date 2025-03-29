@@ -2,8 +2,13 @@
 
 import type React from "react";
 
-import { createContext, useContext, useEffect, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { createContext, useContext, useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import {
+  login as loginApi,
+  register as registerApi,
+  RegisterData,
+} from "@/api";
 
 type User = {
   id: string;
@@ -17,7 +22,7 @@ type AuthContextType = {
   user: User | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (userData: any) => Promise<void>;
+  register: (userData: RegisterData) => Promise<void>;
   logout: () => void;
   resetPassword: (email: string) => Promise<void>;
 };
@@ -26,83 +31,31 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // Start with true
   const router = useRouter();
-  const pathname = usePathname();
 
-  // Check if user is logged in on initial load
+  // Initialize user from localStorage
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        // In a real app, this would verify the token with your backend
-        const storedUser = localStorage.getItem("user");
-        if (storedUser) {
-          setUser(JSON.parse(storedUser));
-        }
-      } catch (error) {
-        console.error("Authentication error:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    checkAuth();
-  }, []);
-
-  // Redirect based on auth status and role
-  useEffect(() => {
-    if (!isLoading) {
-      const publicRoutes = ["/login", "/register", "/reset-password"];
-      const isPublicRoute = publicRoutes.some((route) =>
-        pathname?.startsWith(route)
-      );
-
-      if (!user && !isPublicRoute) {
-        router.push("/login");
-      } else if (user && isPublicRoute) {
-        // Redirect to appropriate dashboard based on role
-        if (user.role === "student") router.push("/dashboard");
-        else if (user.role === "tutor") router.push("/tutor-dashboard");
-        else if (user.role === "parent") router.push("/parent-dashboard");
-        else if (user.role === "admin") router.push("/admin");
-      }
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
     }
-  }, [user, isLoading, pathname, router]);
+    setIsLoading(false);
+  }, []);
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      // Mock API call - replace with actual API integration
-      // const response = await fetch('/api/auth/login', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ email, password }),
-      // });
-      // const data = await response.json();
+      const { user, accessToken } = await loginApi(email, password);
 
-      // Mock successful login
-      const mockUser = {
-        id: "user-123",
-        name: "John Doe",
-        email: email,
-        role: email.includes("admin")
-          ? "admin"
-          : email.includes("tutor")
-          ? "tutor"
-          : email.includes("parent")
-          ? "parent"
-          : "student",
-        avatar: "/placeholder.svg?height=40&width=40",
-      } as User;
-
-      setUser(mockUser);
-      localStorage.setItem("user", JSON.stringify(mockUser));
-
-      // Redirect based on role
-      if (mockUser.role === "student") router.push("/dashboard");
-      else if (mockUser.role === "tutor") router.push("/tutor-dashboard");
-      else if (mockUser.role === "parent") router.push("/parent-dashboard");
-      else if (mockUser.role === "admin") router.push("/admin");
+      setUser(user);
+      localStorage.setItem("user", JSON.stringify(user));
+      localStorage.setItem("token", accessToken);
+      if (user?.role === "tutor") {
+        router.push("/tutor-dashboard");
+      } else {
+        router.push("/dashboard");
+      }
     } catch (error) {
       console.error("Login error:", error);
       throw error;
@@ -111,18 +64,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const register = async (userData: any) => {
+  const register = async (userData: RegisterData) => {
     setIsLoading(true);
     try {
-      // Mock API call - replace with actual API integration
-      // const response = await fetch('/api/auth/register', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(userData),
-      // });
-      // const data = await response.json();
-
-      // Mock successful registration
+      await registerApi(userData);
       router.push("/login?registered=true");
     } catch (error) {
       console.error("Registration error:", error);
@@ -135,22 +80,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = () => {
     setUser(null);
     localStorage.removeItem("user");
+    localStorage.removeItem("token");
     router.push("/login");
   };
 
   const resetPassword = async (email: string) => {
     setIsLoading(true);
     try {
-      // Mock API call - replace with actual API integration
-      // const response = await fetch('/api/auth/reset-password', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ email }),
-      // });
-      // const data = await response.json();
-
-      // Mock successful password reset request
-      router.push("/login?reset=requested");
+      // Implement password reset functionality
+      console.log("Reset password for:", email);
+      // For now, just simulate success
+      router.push("/login?reset=true");
     } catch (error) {
       console.error("Password reset error:", error);
       throw error;

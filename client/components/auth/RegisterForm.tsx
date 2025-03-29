@@ -3,7 +3,7 @@
 import type React from "react";
 
 import { useState } from "react";
-import { useAuth } from "@/lib/auth-provider";
+import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,7 +25,7 @@ export function RegisterForm() {
     email: "",
     password: "",
     confirmPassword: "",
-    role: "student" as "student" | "tutor" | "parent",
+    role: "student" as "student" | "tutor",
   });
   const [error, setError] = useState("");
   const { register, isLoading } = useAuth();
@@ -35,7 +35,7 @@ export function RegisterForm() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleRoleChange = (value: "student" | "tutor" | "parent") => {
+  const handleRoleChange = (value: "student" | "tutor") => {
     setFormData((prev) => ({ ...prev, role: value }));
   };
 
@@ -137,10 +137,6 @@ export function RegisterForm() {
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="tutor" id="tutor" />
                 <Label htmlFor="tutor">Tutor</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="parent" id="parent" />
-                <Label htmlFor="parent">Parent</Label>
               </div>
             </RadioGroup>
           </div>

@@ -10,7 +10,7 @@ const AssignmentSchema: Schema = new Schema<IAssignment>(
     courseId: { type: String, required: true },
     description: { type: String, required: true },
     dueDate: { type: String, required: true },
-    status: { type: String, required: true },
+    status: { type: String, required: true, default: "not_started" },
     priority: { type: String, required: true },
     questions: [
       {
@@ -29,7 +29,7 @@ const AssignmentSchema: Schema = new Schema<IAssignment>(
     submissionType: { type: String, required: true },
     maxScore: { type: Number, required: true },
     weight: { type: String, required: true },
-    instructor: { type: String, required: true },
+    instructor: { type: mongoose.Types.ObjectId, ref: "User", required: true },
     createdAt: { type: String, required: true },
     updatedAt: { type: String, required: true },
     submission: { type: Object, default: null },

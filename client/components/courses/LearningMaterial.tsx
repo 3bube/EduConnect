@@ -1,8 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { getCourseById, markLessonComplete } from "@/api/course";
+import type { Course, MarkLessonCompleteParams } from "@/api/course";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
@@ -28,168 +31,6 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
-// Mock course data
-const courseData = {
-  id: "course-1",
-  title: "Introduction to Mathematics",
-  progress: 15,
-  modules: [
-    {
-      id: "module-1",
-      title: "Foundations of Mathematics",
-      description:
-        "Review of basic arithmetic and introduction to mathematical thinking",
-      lessons: [
-        {
-          id: "lesson-1-1",
-          title: "Numbers and Operations",
-          duration: "45 minutes",
-          type: "video",
-          completed: true,
-          content: {
-            videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ", // Placeholder
-            description:
-              "This lesson covers the fundamental concepts of numbers and basic arithmetic operations.",
-            transcript:
-              "In this lesson, we'll explore the foundation of all mathematics: numbers and operations...",
-          },
-        },
-        {
-          id: "lesson-1-2",
-          title: "Order of Operations",
-          duration: "30 minutes",
-          type: "video",
-          completed: true,
-          content: {
-            videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ", // Placeholder
-            description:
-              "Learn about the order of operations (PEMDAS) and how to apply it to solve complex expressions.",
-            transcript:
-              "When evaluating mathematical expressions, we follow a specific order called PEMDAS...",
-          },
-        },
-        {
-          id: "lesson-1-3",
-          title: "Fractions and Decimals",
-          duration: "50 minutes",
-          type: "video",
-          completed: false,
-          content: {
-            videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ", // Placeholder
-            description:
-              "This lesson explains fractions, decimals, and the relationship between them.",
-            transcript:
-              "Fractions and decimals are different ways to represent parts of a whole...",
-          },
-        },
-        {
-          id: "lesson-1-4",
-          title: "Week 1 Practice Problems",
-          duration: "60 minutes",
-          type: "exercise",
-          completed: false,
-          content: {
-            problems: [
-              {
-                id: "problem-1",
-                question: "Evaluate the expression: 3 + 4 × (2 + 1) ÷ 3 - 1",
-                options: ["6", "8", "5", "7"],
-                correctAnswer: "6",
-              },
-              {
-                id: "problem-2",
-                question: "Convert 3/4 to a decimal.",
-                options: ["0.75", "0.25", "0.5", "0.375"],
-                correctAnswer: "0.75",
-              },
-              {
-                id: "problem-3",
-                question: "What is the result of 2.5 + 1.75?",
-                options: ["3.25", "4.25", "3.75", "4"],
-                correctAnswer: "4.25",
-              },
-            ],
-          },
-        },
-      ],
-    },
-    {
-      id: "module-2",
-      title: "Introduction to Algebra",
-      description: "Learn about variables, expressions, and equations",
-      lessons: [
-        {
-          id: "lesson-2-1",
-          title: "Variables and Expressions",
-          duration: "40 minutes",
-          type: "video",
-          completed: false,
-        },
-        {
-          id: "lesson-2-2",
-          title: "Solving Linear Equations",
-          duration: "55 minutes",
-          type: "video",
-          completed: false,
-        },
-        {
-          id: "lesson-2-3",
-          title: "Inequalities",
-          duration: "45 minutes",
-          type: "video",
-          completed: false,
-        },
-        {
-          id: "lesson-2-4",
-          title: "Week 2 Practice Problems",
-          duration: "60 minutes",
-          type: "exercise",
-          completed: false,
-        },
-      ],
-    },
-  ],
-  resources: [
-    {
-      id: "resource-1",
-      title: "Course Syllabus",
-      type: "pdf",
-      size: "1.2 MB",
-    },
-    {
-      id: "resource-2",
-      title: "Formula Sheet",
-      type: "pdf",
-      size: "0.8 MB",
-    },
-  ],
-  discussions: [
-    {
-      id: "discussion-1",
-      user: {
-        name: "Jane Smith",
-        avatar: "/placeholder.svg?height=40&width=40",
-      },
-      date: "2023-09-10T14:30:00",
-      content:
-        "I'm having trouble understanding the order of operations. Can someone explain why we do multiplication before addition?",
-      replies: [
-        {
-          id: "reply-1",
-          user: {
-            name: "Dr. Smith",
-            avatar: "/placeholder.svg?height=40&width=40",
-            isInstructor: true,
-          },
-          date: "2023-09-10T15:45:00",
-          content:
-            "Great question! The order of operations is a convention that mathematicians agreed upon to ensure everyone gets the same answer when evaluating expressions. Multiplication and division are performed before addition and subtraction because they represent more 'powerful' operations. Think of it as building blocks - multiplication is repeated addition, so we handle it first.",
-        },
-      ],
-    },
-  ],
-};
-
 export function LearningMaterial({ courseId }: { courseId: string }) {
   const router = useRouter();
   const [currentModuleIndex, setCurrentModuleIndex] = useState(0);
@@ -197,18 +38,53 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState("content");
 
-  const currentModule = courseData.modules[currentModuleIndex];
-  const currentLesson = currentModule?.lessons[currentLessonIndex];
+  const {
+    data: course,
+    isLoading,
+    error,
+  } = useQuery<Course>({
+    queryKey: ["course", courseId],
+    queryFn: async () => {
+      const response = await getCourseById(courseId);
+      return response.course;
+    },
+    staleTime: 60 * 60 * 1000, // 1 hour
+  });
+
+  const { mutate: markLessonCompleteMutation } = useMutation<
+    Course,
+    Error,
+    MarkLessonCompleteParams
+  >({
+    mutationFn: markLessonComplete,
+  });
+
+  if (isLoading) {
+    return <div className="text-center py-8">Loading course materials...</div>;
+  }
+
+  if (error || !course) {
+    return (
+      <div className="text-center py-8 text-red-500">
+        Error loading course materials
+      </div>
+    );
+  }
+
+  const currentModule = course?.modules?.[currentModuleIndex];
+  const currentLesson = course?.lessons?.[currentLessonIndex];
+
+  console.log("Current Lesson:", currentLesson);
 
   // Calculate total lessons and completed lessons
-  const totalLessons = courseData.modules.reduce(
-    (total, module) => total + module.lessons.length,
+  const totalLessons = course?.modules?.reduce(
+    (total, module) => total + (module.lessons?.length || 0),
     0
   );
 
-  const completedLessons = courseData.modules.reduce(
+  const completedLessons = course?.modules?.reduce(
     (total, module) =>
-      total + module.lessons.filter((lesson) => lesson.completed).length,
+      total + module.lessons?.filter((lesson) => lesson.completed).length,
     0
   );
 
@@ -218,10 +94,10 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
   };
 
   const handleNextLesson = () => {
-    if (currentLessonIndex < currentModule.lessons.length - 1) {
+    if (currentLessonIndex < currentModule?.lessons?.length - 1) {
       // Next lesson in current module
       setCurrentLessonIndex(currentLessonIndex + 1);
-    } else if (currentModuleIndex < courseData.modules.length - 1) {
+    } else if (currentModuleIndex < course?.modules?.length - 1) {
       // First lesson in next module
       setCurrentModuleIndex(currentModuleIndex + 1);
       setCurrentLessonIndex(0);
@@ -232,19 +108,39 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
     if (currentLessonIndex > 0) {
       // Previous lesson in current module
       setCurrentLessonIndex(currentLessonIndex - 1);
-    } else if (currentModuleIndex > 0) {
+    } else if (
+      currentModuleIndex > 0 &&
+      course?.modules?.[currentModuleIndex - 1]?.lessons?.length
+    ) {
       // Last lesson in previous module
       setCurrentModuleIndex(currentModuleIndex - 1);
       setCurrentLessonIndex(
-        courseData.modules[currentModuleIndex - 1].lessons.length - 1
+        course?.modules?.[currentModuleIndex - 1]?.lessons?.length - 1
       );
     }
   };
 
-  const markAsCompleted = () => {
-    // In a real app, this would make an API call to update the lesson status
-    // For now, we'll just navigate to the next lesson
-    handleNextLesson();
+  const markAsCompleted = async () => {
+    if (!currentLesson?.id) return;
+
+    try {
+      await markLessonCompleteMutation(
+        {
+          courseId,
+          lessonId: currentLesson.id,
+        },
+        {
+          onSuccess: () => {
+            handleNextLesson();
+          },
+          onError: (error) => {
+            console.error("Failed to mark lesson as complete:", error);
+          },
+        }
+      );
+    } catch (error) {
+      console.error("Error marking lesson as complete:", error);
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -269,7 +165,7 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
               <span className="sr-only">Back to course</span>
             </Link>
           </Button>
-          <h1 className="ml-2 text-lg font-medium">{courseData.title}</h1>
+          <h1 className="ml-2 text-lg font-medium">{course.title}</h1>
         </div>
         <div className="flex items-center space-x-2">
           <Button
@@ -294,9 +190,9 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
               <div className="mb-4">
                 <div className="mb-2 flex items-center justify-between text-sm">
                   <span>Your progress</span>
-                  <span className="font-medium">{courseData.progress}%</span>
+                  <span className="font-medium">{course.progress}%</span>
                 </div>
-                <Progress value={courseData.progress} className="h-2" />
+                <Progress value={course.progress} className="h-2" />
                 <p className="mt-2 text-xs text-muted-foreground">
                   {completedLessons} of {totalLessons} lessons completed
                 </p>
@@ -304,10 +200,10 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
 
               <Accordion
                 type="multiple"
-                defaultValue={[currentModule.id]}
+                defaultValue={[currentModule?.id]}
                 className="w-full"
               >
-                {courseData.modules.map((module, moduleIndex) => (
+                {course.modules?.map((module, moduleIndex) => (
                   <AccordionItem key={module.id} value={module.id}>
                     <AccordionTrigger className="hover:no-underline">
                       <div className="text-left">
@@ -336,7 +232,7 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
                               <div className="flex w-full items-center">
                                 {lesson.completed ? (
                                   <CheckCircle2 className="mr-2 h-4 w-4 text-green-500" />
-                                ) : lesson.type === "video" ? (
+                                ) : lesson.type.toLowerCase() === "video" ? (
                                   <Play className="mr-2 h-4 w-4" />
                                 ) : (
                                   <FileText className="mr-2 h-4 w-4" />
@@ -366,8 +262,8 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
             <div className="mb-6">
               <h2 className="text-2xl font-bold">{currentLesson?.title}</h2>
               <p className="text-muted-foreground">
-                {currentModule.title} • Lesson {currentLessonIndex + 1} of{" "}
-                {currentModule.lessons.length}
+                {currentModule?.title} • Lesson {currentLessonIndex + 1} of{" "}
+                {currentModule?.lessons.length}
               </p>
             </div>
 
@@ -383,13 +279,26 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
               </TabsList>
 
               <TabsContent value="content" className="mt-6">
-                {currentLesson?.type === "video" && currentLesson?.content ? (
+                {currentLesson?.type.toLowerCase() === "video" &&
+                currentLesson?.content ? (
                   <div className="space-y-6">
                     <div className="aspect-video overflow-hidden rounded-lg">
+                      {console.log(
+                        "Video URL:",
+                        currentLesson.content.videoUrl
+                      )}
                       <iframe
-                        src={currentLesson.content.videoUrl}
+                        src={`https://www.youtube.com/embed/${
+                          currentLesson.content.videoUrl
+                            .split("v=")[1]
+                            ?.split("&")[0]
+                        }?autoplay=0&rel=0&modestbranding=1&origin=${encodeURIComponent(
+                          window.location.origin
+                        )}`}
                         className="h-full w-full"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                         allowFullScreen
+                        frameBorder="0"
                         title={currentLesson.title}
                       ></iframe>
                     </div>
@@ -473,7 +382,7 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
                   <h3 className="text-lg font-medium">Discussion</h3>
 
                   <div className="space-y-4">
-                    {courseData.discussions.map((discussion) => (
+                    {course.discussions?.map((discussion) => (
                       <div
                         key={discussion.id}
                         className="rounded-lg border p-4"
@@ -581,7 +490,7 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
                   <h3 className="text-lg font-medium">Lesson Resources</h3>
 
                   <ul className="space-y-2">
-                    {courseData.resources.map((resource) => (
+                    {course.resources?.map((resource) => (
                       <li key={resource.id}>
                         <Button
                           variant="outline"
@@ -632,8 +541,8 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
               <Button
                 onClick={handleNextLesson}
                 disabled={
-                  currentModuleIndex === courseData.modules.length - 1 &&
-                  currentLessonIndex === currentModule.lessons.length - 1
+                  currentModuleIndex === course.modules?.length - 1 &&
+                  currentLessonIndex === currentModule.lessons?.length - 1
                 }
               >
                 Next Lesson

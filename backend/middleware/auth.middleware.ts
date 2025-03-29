@@ -1,29 +1,58 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
-import { User } from "../types/user"; // Import the User type
 
-const SECRET_KEY = process.env.JWT_SECRET || "your_secret_key";
+const SECRET_KEY = process.env.JWT_SECRET || process.env.SECRET_KEY || "your_secret_key";
 
-export interface AuthRequest extends Request {
-  user?: User; // Extend request with the User type
+// Extend Express Request interface to include userId
+declare global {
+  namespace Express {
+    interface Request {
+      userId?: string;
+      user?: any; // Add user property for backward compatibility
+    }
+  }
 }
 
+// Export the extended request interface for imports in other files
+export interface ExtendedRequest extends Request {
+  userId?: string;
+  user?: any;
+}
+
+/**
+ * Authentication middleware that verifies JWT token
+ * and adds the userId to the request object
+ */
 export const authMiddleware = (
-  req: AuthRequest,
+  req: Request,
   res: Response,
   next: NextFunction
-) => {
-  const token = req.header("Authorization")?.split(" ")[1]; // Expect "Bearer <token>"
+): void => {
+  // Get token from Authorization header
+  const authHeader = req.header("Authorization");
+  const token = authHeader?.startsWith("Bearer ") 
+    ? authHeader.substring(7) 
+    : null;
 
   if (!token) {
-    return res.status(401).json({ error: "Unauthorized: No token provided" });
+    res.status(401).json({ error: "Unauthorized: No token provided" });
+    return;
   }
 
   try {
-    const decoded = jwt.verify(token, SECRET_KEY) as User; // Cast to User type
-    req.user = decoded; // Attach user info to request
+    // Verify token and extract userId
+    const decoded = jwt.verify(token, SECRET_KEY) as { userId: string };
+    
+    // Add userId to request object (now properly typed)
+    req.userId = decoded.userId;
+    
     next();
   } catch (error) {
-    return res.status(401).json({ error: "Unauthorized: Invalid token" });
+    // Handle invalid token error
+    const errorMessage = error instanceof Error 
+      ? `Unauthorized: ${error.message}` 
+      : "Unauthorized: Invalid token";
+      
+    res.status(401).json({ error: errorMessage });
   }
 };

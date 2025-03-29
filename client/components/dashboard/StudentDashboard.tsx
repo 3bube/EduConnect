@@ -143,7 +143,7 @@ export function StudentDashboard() {
             Welcome back, {user?.name}
           </h1>
           <p className="text-muted-foreground">
-            Here's what's happening with your learning journey today.
+            Here&apos;s what&apos;s happening with your learning journey today.
           </p>
         </div>
         <div className="flex gap-2">

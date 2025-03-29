@@ -9,7 +9,7 @@ const UserSchema = new Schema<IUser>(
     password: { type: String, required: true },
     role: {
       type: String,
-      enum: ["student", "teacher", "admin"],
+      enum: ["student", "tutor", "parent"],
       default: "student",
     },
     enrolledCourses: [

@@ -57,13 +57,13 @@ export function MainNav() {
       active: isActive("/courses"),
       roles: ["student", "tutor", "parent", "admin"],
     },
-    {
-      title: "Live Classes",
-      href: "/live-classes",
-      icon: <Calendar className="mr-2 h-4 w-4" />,
-      active: isActive("/live-classes"),
-      roles: ["student", "tutor", "parent", "admin"],
-    },
+    // {
+    //   title: "Live Classes",
+    //   href: "/live-classes",
+    //   icon: <Calendar className="mr-2 h-4 w-4" />,
+    //   active: isActive("/live-classes"),
+    //   roles: ["student", "tutor", "parent", "admin"],
+    // },
     {
       title: "Assessments",
       href: "/assessments",
@@ -100,9 +100,7 @@ export function MainNav() {
         <div className="flex items-center">
           <Link href="/dashboard" className="flex items-center space-x-2">
             <GraduationCap className="h-6 w-6" />
-            <span className="hidden font-bold sm:inline-block">
-              Student Tutor App
-            </span>
+            <span className="hidden font-bold sm:inline-block">EduConnect</span>
           </Link>
           <nav className="ml-10 hidden space-x-4 md:flex">
             {navItems.map((item) => (
@@ -137,7 +135,7 @@ export function MainNav() {
                   onClick={() => setIsOpen(false)}
                 >
                   <GraduationCap className="h-6 w-6" />
-                  <span className="font-bold">Student Tutor App</span>
+                  <span className="font-bold">EduConnect</span>
                 </Link>
               </div>
               <nav className="flex flex-col space-y-1 px-2 py-4">

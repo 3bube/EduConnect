@@ -21,7 +21,7 @@ export default function LoginPage() {
             Or{" "}
             <a
               href="/register"
-              className="font-medium text-primary hover:text-primary/90"
+              className="font-medium text-white hover:text-primary/90"
             >
               create a new account
             </a>

@@ -40,5 +40,14 @@ export const submitAssessment = (id: string) =>
 export const getAssessmentResults = (id: string) =>
   requestHandler(newRequest.get(`/assessments/${id}/results`));
 
+export const getDetailedAssessmentResults = (id: string) =>
+  requestHandler(newRequest.get(`/assessments/${id}/detailed-results`));
+
 export const createAssessment = (assessment: Assessment) =>
   requestHandler(newRequest.post(`/assessments/create`, assessment));
+
+export const getAssessmentForUser = () =>
+  requestHandler(newRequest.get(`/assessments/user`));
+
+export const getQuestion = (id: string) =>
+  requestHandler(newRequest.get(`/assessments/${id}/question`));

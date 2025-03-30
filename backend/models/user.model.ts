@@ -18,6 +18,12 @@ const UserSchema = new Schema<IUser>(
         ref: "Course", // Reference to Course model
       },
     ],
+    certificates: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "Certificate", // Reference to Certificate model
+      },
+    ],
   },
   { timestamps: true }
 );

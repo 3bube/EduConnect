@@ -29,6 +29,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { Course } from "@/api/course";
 import { enrollCourse } from "@/api/course";
 import { useAuth } from "@/context/AuthContext";
+import { useEffect } from "react";
 
 interface CourseDetailsProps {
   courseId: string;
@@ -37,6 +38,7 @@ interface CourseDetailsProps {
 export function CourseDetails({ courseId }: CourseDetailsProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("overview");
+  const [isEnrolled, setIsEnrolled] = useState(false);
   const { user } = useAuth();
 
   const {
@@ -57,7 +59,16 @@ export function CourseDetails({ courseId }: CourseDetailsProps) {
     },
   });
 
-  const [isEnrolled, setIsEnrolled] = useState(course?.enrolled || false);
+
+  // use effect to get the user enrolled courses
+  useEffect(() => {
+    if (user) {
+      const enrolledCourses = user.enrolledCourses || [];
+      const isEnrolled = enrolledCourses.some((courseId) => courseId === courseId);
+      setIsEnrolled(isEnrolled);
+    }
+  }, [user, courseId]);
+
 
   if (isLoading) {
     return <div className="text-center py-8">Loading course details...</div>;

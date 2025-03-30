@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,149 +16,98 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
-import { AlertCircle, ArrowLeft, ArrowRight, Clock, Flag } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowLeft,
+  ArrowRight,
+  Clock,
+  Flag,
+  Loader2,
+} from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { getQuestion } from "@/api/assessment";
+import { useQuery } from "@tanstack/react-query";
 
-// Mock assessment data
-const assessmentData = {
-  id: "assessment-1",
-  title: "Algebra Fundamentals Quiz",
-  course: "Introduction to Mathematics",
-  description: "Test your understanding of basic algebraic concepts",
-  timeLimit: 30, // minutes
-  questions: [
-    {
-      id: "q1",
-      type: "multiple-choice",
-      text: "Which of the following is a solution to the equation 2x + 5 = 11?",
-      options: [
-        { id: "q1-a", text: "x = 2" },
-        { id: "q1-b", text: "x = 3" },
-        { id: "q1-c", text: "x = 4" },
-        { id: "q1-d", text: "x = 5" },
-      ],
-      correctAnswer: "q1-b",
-    },
-    {
-      id: "q2",
-      type: "multiple-choice",
-      text: "Simplify the expression: 3(2x - 4) + 5",
-      options: [
-        { id: "q2-a", text: "6x - 12 + 5" },
-        { id: "q2-b", text: "6x - 7" },
-        { id: "q2-c", text: "6x - 12" },
-        { id: "q2-d", text: "6x - 17" },
-      ],
-      correctAnswer: "q2-b",
-    },
-    {
-      id: "q3",
-      type: "multiple-select",
-      text: "Which of the following are quadratic equations? (Select all that apply)",
-      options: [
-        { id: "q3-a", text: "y = 2x + 3" },
-        { id: "q3-b", text: "y = x² + 2x + 1" },
-        { id: "q3-c", text: "y = 3x³ - 2x² + x" },
-        { id: "q3-d", text: "y = 4x² - 7" },
-      ],
-      correctAnswers: ["q3-b", "q3-d"],
-    },
-    {
-      id: "q4",
-      type: "true-false",
-      text: "The equation y = mx + b represents a linear function.",
-      options: [
-        { id: "q4-a", text: "True" },
-        { id: "q4-b", text: "False" },
-      ],
-      correctAnswer: "q4-a",
-    },
-    {
-      id: "q5",
-      type: "multiple-choice",
-      text: "What is the slope of the line passing through the points (2, 3) and (4, 7)?",
-      options: [
-        { id: "q5-a", text: "1" },
-        { id: "q5-b", text: "2" },
-        { id: "q5-c", text: "3" },
-        { id: "q5-d", text: "4" },
-      ],
-      correctAnswer: "q5-b",
-    },
-    {
-      id: "q6",
-      type: "multiple-choice",
-      text: "Solve for x: 3x - 7 = 5x + 3",
-      options: [
-        { id: "q6-a", text: "x = -5" },
-        { id: "q6-b", text: "x = -4" },
-        { id: "q6-c", text: "x = 4" },
-        { id: "q6-d", text: "x = 5" },
-      ],
-      correctAnswer: "q6-a",
-    },
-    {
-      id: "q7",
-      type: "multiple-select",
-      text: "Which of the following are solutions to the inequality x² - 4 < 0? (Select all that apply)",
-      options: [
-        { id: "q7-a", text: "x = 0" },
-        { id: "q7-b", text: "x = 1" },
-        { id: "q7-c", text: "x = 2" },
-        { id: "q7-d", text: "x = 3" },
-      ],
-      correctAnswers: ["q7-a", "q7-b"],
-    },
-    {
-      id: "q8",
-      type: "true-false",
-      text: "The graph of y = |x| is a parabola.",
-      options: [
-        { id: "q8-a", text: "True" },
-        { id: "q8-b", text: "False" },
-      ],
-      correctAnswer: "q8-b",
-    },
-    {
-      id: "q9",
-      type: "multiple-choice",
-      text: "What is the value of x in the equation 2(x + 3) = 3(x - 1)?",
-      options: [
-        { id: "q9-a", text: "x = 7" },
-        { id: "q9-b", text: "x = 9" },
-        { id: "q9-c", text: "x = 11" },
-        { id: "q9-d", text: "x = 13" },
-      ],
-      correctAnswer: "q9-b",
-    },
-    {
-      id: "q10",
-      type: "multiple-choice",
-      text: "Which of the following is the factored form of x² - 9?",
-      options: [
-        { id: "q10-a", text: "(x - 3)(x - 3)" },
-        { id: "q10-b", text: "(x + 3)(x - 3)" },
-        { id: "q10-c", text: "(x + 9)(x - 1)" },
-        { id: "q10-d", text: "(x - 9)(x + 1)" },
-      ],
-      correctAnswer: "q10-b",
-    },
-  ],
-};
+// Define interfaces for the question data
+interface Question {
+  id: string;
+  text: string;
+  options: string[];
+  type: "multiple-choice" | "multiple-select" | "true-false";
+}
+
+// Define interface for the API response
+interface QuestionsResponse {
+  questions: Question[];
+  course?: {
+    _id: string;
+    title: string;
+  };
+  title?: string;
+  timeLimit?: number;
+}
 
 export function QuizInterface({ assessmentId }: { assessmentId: string }) {
   const router = useRouter();
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
   const [flaggedQuestions, setFlaggedQuestions] = useState<string[]>([]);
-  const [timeRemaining, setTimeRemaining] = useState(
-    assessmentData.timeLimit * 60
-  ); // in seconds
+  const [timeRemaining, setTimeRemaining] = useState(30 * 60); // Default 30 minutes, will be updated
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmSubmit, setShowConfirmSubmit] = useState(false);
+  const [progress, setProgress] = useState(0);
 
-  const currentQuestion = assessmentData.questions[currentQuestionIndex];
-  const totalQuestions = assessmentData.questions.length;
+  // Submit assessment - defined early to avoid the "used before declaration" error
+  const handleSubmit = useCallback(() => {
+    setIsSubmitting(true);
+
+    // In a real app, this would submit the answers to the server
+    // For now, we'll just navigate to the results page
+    setTimeout(() => {
+      // Navigate to the results page using the correct Next.js route structure
+      router.push(`/assessments/${assessmentId}/results.tsx`);
+    }, 1500);
+  }, [assessmentId, router]);
+
+  // Fetch questions data
+  const {
+    data: questionsData,
+    isLoading: isLoadingQuestions,
+    error: questionsError,
+  } = useQuery<QuestionsResponse>({
+    queryKey: ["questions", assessmentId],
+    queryFn: async () => {
+      const response = await getQuestion(assessmentId);
+      return response || { questions: [] };
+    },
+    enabled: !!assessmentId,
+  });
+
+  // Derived state using useMemo - defined before any conditional returns
+  const questions = useMemo(
+    () => questionsData?.questions || [],
+    [questionsData]
+  );
+
+  const totalQuestions = useMemo(() => questions.length, [questions]);
+
+  const currentQuestion = useMemo(
+    () =>
+      questions[currentQuestionIndex] || {
+        id: "",
+        text: "",
+        options: [],
+        type: "multiple-choice" as const,
+      },
+    [questions, currentQuestionIndex]
+  );
+
+  // Update time remaining when assessment data is loaded
+  useEffect(() => {
+    if (questionsData?.timeLimit) {
+      setTimeRemaining(questionsData.timeLimit * 60);
+    }
+  }, [questionsData]);
 
   // Timer
   useEffect(() => {
@@ -174,7 +123,7 @@ export function QuizInterface({ assessmentId }: { assessmentId: string }) {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [handleSubmit]);
 
   // Format time remaining
   const formatTimeRemaining = () => {
@@ -187,10 +136,12 @@ export function QuizInterface({ assessmentId }: { assessmentId: string }) {
 
   // Handle single choice answer
   const handleSingleChoiceAnswer = (questionId: string, optionId: string) => {
-    setAnswers((prev) => ({
-      ...prev,
-      [questionId]: optionId,
-    }));
+    setAnswers((prev) => {
+      const newAnswers = { ...prev, [questionId]: optionId };
+      // Update progress after updating answers
+      setTimeout(() => updateProgress(newAnswers), 0);
+      return newAnswers;
+    });
   };
 
   // Handle multiple choice answer
@@ -201,20 +152,41 @@ export function QuizInterface({ assessmentId }: { assessmentId: string }) {
   ) => {
     setAnswers((prev) => {
       const currentAnswers = (prev[questionId] as string[]) || [];
+      let newAnswers;
 
       if (checked) {
-        return {
-          ...prev,
-          [questionId]: [...currentAnswers, optionId],
-        };
+        newAnswers = { ...prev, [questionId]: [...currentAnswers, optionId] };
       } else {
-        return {
+        newAnswers = {
           ...prev,
           [questionId]: currentAnswers.filter((id) => id !== optionId),
         };
       }
+
+      // Update progress after updating answers
+      setTimeout(() => updateProgress(newAnswers), 0);
+      return newAnswers;
     });
   };
+
+  // Calculate and update progress
+  const updateProgress = useCallback(
+    (currentAnswers?: Record<string, string | string[]>) => {
+      const answersToCount = currentAnswers || answers;
+      if (totalQuestions === 0) {
+        setProgress(0);
+      } else {
+        const answeredQuestions = Object.keys(answersToCount).length;
+        setProgress((answeredQuestions / totalQuestions) * 100);
+      }
+    },
+    [answers, totalQuestions]
+  );
+
+  // Make sure to update progress when total questions change
+  useEffect(() => {
+    updateProgress();
+  }, [updateProgress]);
 
   // Toggle flagged question
   const toggleFlaggedQuestion = (questionId: string) => {
@@ -241,46 +213,58 @@ export function QuizInterface({ assessmentId }: { assessmentId: string }) {
     }
   };
 
-  // Navigate to specific question
-  const handleNavigateToQuestion = (index: number) => {
-    setCurrentQuestionIndex(index);
-  };
+  // If questions are still loading or there's an error, show appropriate UI
+  if (isLoadingQuestions) {
+    return (
+      <div className="container mx-auto flex h-[60vh] max-w-4xl items-center justify-center px-4 py-8 sm:px-6">
+        <div className="text-center">
+          <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+          <p className="mt-2 text-lg">Loading assessment...</p>
+        </div>
+      </div>
+    );
+  }
 
-  // Submit assessment
-  const handleSubmit = () => {
-    setIsSubmitting(true);
+  if (questionsError) {
+    return (
+      <div className="container mx-auto max-w-4xl px-4 py-8 sm:px-6">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>
+            Failed to load questions. Make sure you are enrolled in this course.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
-    // In a real app, this would submit the answers to the server
-    // For now, we'll just navigate to the results page
-    setTimeout(() => {
-      router.push(`/assessments/${assessmentId}/results`);
-    }, 1500);
-  };
-
-  // Check if current question is answered
-  const isCurrentQuestionAnswered = () => {
-    const answer = answers[currentQuestion.id];
-    if (!answer) return false;
-
-    if (Array.isArray(answer)) {
-      return answer.length > 0;
-    }
-
-    return true;
-  };
-
-  // Calculate progress
-  const calculateProgress = () => {
-    const answeredQuestions = Object.keys(answers).length;
-    return (answeredQuestions / totalQuestions) * 100;
-  };
+  // If no questions are available
+  if (!questions.length) {
+    return (
+      <div className="container mx-auto max-w-4xl px-4 py-8 sm:px-6">
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>No Questions Available</AlertTitle>
+          <AlertDescription>
+            This assessment does not have any questions yet. Please check back
+            later.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto max-w-4xl px-4 py-8 sm:px-6">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">{assessmentData.title}</h1>
-          <p className="text-muted-foreground">{assessmentData.course}</p>
+          <h1 className="text-2xl font-bold">
+            {questionsData?.title || "Assessment"}
+          </h1>
+          <p className="text-muted-foreground">
+            {questionsData?.course?.title || "No course"}
+          </p>
         </div>
         <div className="flex items-center space-x-2">
           <div
@@ -303,7 +287,7 @@ export function QuizInterface({ assessmentId }: { assessmentId: string }) {
             {Object.keys(answers).length}/{totalQuestions} questions answered
           </span>
         </div>
-        <Progress value={calculateProgress()} className="h-2" />
+        <Progress value={progress} className="h-2" />
       </div>
 
       <div className="grid gap-6 md:grid-cols-[1fr_250px]">
@@ -348,58 +332,70 @@ export function QuizInterface({ assessmentId }: { assessmentId: string }) {
                 {(currentQuestion.type === "multiple-choice" ||
                   currentQuestion.type === "true-false") && (
                   <RadioGroup
-                    value={(answers[currentQuestion.id] as string) || ""}
+                    value={answers[currentQuestion.id] as string}
                     onValueChange={(value) =>
                       handleSingleChoiceAnswer(currentQuestion.id, value)
                     }
                   >
-                    <div className="space-y-3">
-                      {currentQuestion.options.map((option) => (
-                        <div
-                          key={option.id}
-                          className="flex items-center space-x-2"
-                        >
-                          <RadioGroupItem value={option.id} id={option.id} />
-                          <Label
-                            htmlFor={option.id}
-                            className="flex-1 cursor-pointer py-2"
+                    <div className="space-y-2">
+                      {currentQuestion.options.map(
+                        (option: string, index: number) => (
+                          <div
+                            key={index}
+                            className="flex items-center space-x-2 rounded-md border p-3 hover:bg-muted/50"
                           >
-                            {option.text}
-                          </Label>
-                        </div>
-                      ))}
+                            <RadioGroupItem
+                              value={option}
+                              id={`${currentQuestion.id}-${index}`}
+                              className="peer"
+                            />
+                            <Label
+                              htmlFor={`${currentQuestion.id}-${index}`}
+                              className="flex-1 cursor-pointer"
+                            >
+                              {option}
+                            </Label>
+                          </div>
+                        )
+                      )}
                     </div>
                   </RadioGroup>
                 )}
 
                 {currentQuestion.type === "multiple-select" && (
-                  <div className="space-y-3">
-                    {currentQuestion.options.map((option) => (
-                      <div
-                        key={option.id}
-                        className="flex items-center space-x-2"
-                      >
-                        <Checkbox
-                          id={option.id}
-                          checked={(
-                            (answers[currentQuestion.id] as string[]) || []
-                          ).includes(option.id)}
-                          onCheckedChange={(checked) =>
-                            handleMultipleChoiceAnswer(
-                              currentQuestion.id,
-                              option.id,
-                              checked as boolean
-                            )
-                          }
-                        />
-                        <Label
-                          htmlFor={option.id}
-                          className="flex-1 cursor-pointer py-2"
+                  <div className="space-y-2">
+                    {currentQuestion.options.map(
+                      (option: string, index: number) => (
+                        <div
+                          key={index}
+                          className="flex items-center space-x-2 rounded-md border p-3 hover:bg-muted/50"
                         >
-                          {option.text}
-                        </Label>
-                      </div>
-                    ))}
+                          <Checkbox
+                            id={`${currentQuestion.id}-${index}`}
+                            checked={
+                              Array.isArray(answers[currentQuestion.id]) &&
+                              (
+                                answers[currentQuestion.id] as string[]
+                              ).includes(option)
+                            }
+                            onCheckedChange={(checked) =>
+                              handleMultipleChoiceAnswer(
+                                currentQuestion.id,
+                                option,
+                                checked as boolean
+                              )
+                            }
+                            className="peer"
+                          />
+                          <Label
+                            htmlFor={`${currentQuestion.id}-${index}`}
+                            className="flex-1 cursor-pointer"
+                          >
+                            {option}
+                          </Label>
+                        </div>
+                      )
+                    )}
                   </div>
                 )}
               </div>
@@ -413,18 +409,14 @@ export function QuizInterface({ assessmentId }: { assessmentId: string }) {
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Previous
               </Button>
-
-              {currentQuestionIndex === totalQuestions - 1 ? (
-                <Button
-                  onClick={() => setShowConfirmSubmit(true)}
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? "Submitting..." : "Submit Quiz"}
-                </Button>
-              ) : (
+              {currentQuestionIndex < totalQuestions - 1 ? (
                 <Button onClick={handleNextQuestion}>
                   Next
                   <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              ) : (
+                <Button onClick={() => setShowConfirmSubmit(true)}>
+                  Finish
                 </Button>
               )}
             </CardFooter>
@@ -435,24 +427,25 @@ export function QuizInterface({ assessmentId }: { assessmentId: string }) {
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Confirm Submission</AlertTitle>
               <AlertDescription>
-                <p className="mb-4">
-                  Are you sure you want to submit your quiz? You have answered{" "}
-                  {Object.keys(answers).length} out of {totalQuestions}{" "}
+                <p className="mb-2">
+                  Are you sure you want to submit your assessment? You have
+                  answered {Object.keys(answers).length} out of {totalQuestions}{" "}
                   questions.
                 </p>
                 <div className="flex space-x-2">
                   <Button
-                    variant="destructive"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowConfirmSubmit(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
                     onClick={handleSubmit}
                     disabled={isSubmitting}
                   >
-                    {isSubmitting ? "Submitting..." : "Yes, Submit Quiz"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowConfirmSubmit(false)}
-                  >
-                    No, Continue Quiz
+                    {isSubmitting ? "Submitting..." : "Submit Assessment"}
                   </Button>
                 </div>
               </AlertDescription>
@@ -468,23 +461,23 @@ export function QuizInterface({ assessmentId }: { assessmentId: string }) {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-5 gap-2">
-                {assessmentData.questions.map((question, index) => (
+                {questions.map((question: Question, index: number) => (
                   <Button
                     key={question.id}
                     variant={
-                      currentQuestionIndex === index ? "default" : "outline"
+                      currentQuestionIndex === index
+                        ? "default"
+                        : answers[question.id]
+                        ? "outline"
+                        : "ghost"
                     }
                     size="sm"
-                    className={`h-10 w-10 p-0 ${
-                      answers[question.id]
-                        ? "border-green-500 bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400"
-                        : ""
-                    } ${
+                    className={`h-10 w-10 ${
                       flaggedQuestions.includes(question.id)
-                        ? "border-yellow-500 bg-yellow-50 text-yellow-700 hover:bg-yellow-100 dark:bg-yellow-900/20 dark:text-yellow-400"
+                        ? "border-2 border-yellow-500"
                         : ""
                     }`}
-                    onClick={() => handleNavigateToQuestion(index)}
+                    onClick={() => setCurrentQuestionIndex(index)}
                   >
                     {index + 1}
                   </Button>
@@ -493,57 +486,20 @@ export function QuizInterface({ assessmentId }: { assessmentId: string }) {
 
               <div className="mt-4 space-y-2 text-sm">
                 <div className="flex items-center">
-                  <div className="mr-2 h-3 w-3 rounded-full bg-green-500"></div>
+                  <div className="mr-2 h-3 w-3 rounded-full bg-primary"></div>
+                  <span>Current Question</span>
+                </div>
+                <div className="flex items-center">
+                  <div className="mr-2 h-3 w-3 rounded-full border-2 border-yellow-500"></div>
+                  <span>Flagged for Review</span>
+                </div>
+                <div className="flex items-center">
+                  <div className="mr-2 h-3 w-3 rounded-full border"></div>
                   <span>Answered</span>
                 </div>
                 <div className="flex items-center">
-                  <div className="mr-2 h-3 w-3 rounded-full bg-yellow-500"></div>
-                  <span>Flagged for review</span>
-                </div>
-                <div className="flex items-center">
                   <div className="mr-2 h-3 w-3 rounded-full bg-muted"></div>
-                  <span>Unanswered</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Quiz Summary</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">
-                    Total Questions
-                  </p>
-                  <p className="text-lg font-medium">{totalQuestions}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Answered</p>
-                  <p className="text-lg font-medium">
-                    {Object.keys(answers).length}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Flagged</p>
-                  <p className="text-lg font-medium">
-                    {flaggedQuestions.length}
-                  </p>
-                </div>
-                <Separator />
-                <div>
-                  <p className="text-sm text-muted-foreground">
-                    Time Remaining
-                  </p>
-                  <p
-                    className={`text-lg font-medium ${
-                      timeRemaining < 300 ? "text-red-500" : ""
-                    }`}
-                  >
-                    {formatTimeRemaining()}
-                  </p>
+                  <span>Not Answered</span>
                 </div>
               </div>
             </CardContent>
@@ -551,11 +507,39 @@ export function QuizInterface({ assessmentId }: { assessmentId: string }) {
               <Button
                 className="w-full"
                 onClick={() => setShowConfirmSubmit(true)}
-                disabled={isSubmitting}
               >
-                {isSubmitting ? "Submitting..." : "Submit Quiz"}
+                Submit Assessment
               </Button>
             </CardFooter>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Assessment Summary</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span>Total Questions:</span>
+                  <span className="font-medium">{totalQuestions}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Answered:</span>
+                  <span className="font-medium">
+                    {Object.keys(answers).length}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Flagged:</span>
+                  <span className="font-medium">{flaggedQuestions.length}</span>
+                </div>
+                <Separator className="my-2" />
+                <div className="flex justify-between">
+                  <span>Time Remaining:</span>
+                  <span className="font-medium">{formatTimeRemaining()}</span>
+                </div>
+              </div>
+            </CardContent>
           </Card>
         </div>
       </div>

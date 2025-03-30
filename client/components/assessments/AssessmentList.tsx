@@ -30,77 +30,43 @@ import {
   FileText,
   Search,
   Timer,
+  Loader2,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { getAssessment, getAssessmentForUser } from "@/api/assessment";
+import { useAuth } from "@/context/AuthContext";
 
-// Mock data
-const assessments = [
-  {
-    id: "assessment-1",
-    title: "Algebra Fundamentals Quiz",
-    course: "Introduction to Mathematics",
-    description: "Test your understanding of basic algebraic concepts",
-    type: "quiz",
-    questions: 15,
-    timeLimit: 30, // minutes
-    dueDate: "2023-09-20T23:59:59",
-    status: "not_started", // not_started, in_progress, completed
-    category: "Mathematics",
-  },
-  {
-    id: "assessment-2",
-    title: "Literary Analysis Midterm",
-    course: "Advanced English Literature",
-    description:
-      "Analyze passages from Shakespeare's works and answer critical thinking questions",
-    type: "exam",
-    questions: 25,
-    timeLimit: 90, // minutes
-    dueDate: "2023-09-18T23:59:59",
-    status: "in_progress",
-    progress: 40,
-    category: "Literature",
-  },
-  {
-    id: "assessment-3",
-    title: "Physics Laws Quiz",
-    course: "Physics 101",
-    description: "Test your knowledge of Newton's laws and their applications",
-    type: "quiz",
-    questions: 10,
-    timeLimit: 20, // minutes
-    dueDate: "2023-09-15T23:59:59",
-    status: "completed",
-    score: 85,
-    category: "Physics",
-  },
-  {
-    id: "assessment-4",
-    title: "Programming Concepts Test",
-    course: "Introduction to Computer Science",
-    description:
-      "Evaluate your understanding of basic programming concepts and syntax",
-    type: "quiz",
-    questions: 20,
-    timeLimit: 45, // minutes
-    dueDate: "2023-09-25T23:59:59",
-    status: "not_started",
-    category: "Computer Science",
-  },
-  {
-    id: "assessment-5",
-    title: "Ancient Civilizations Final Exam",
-    course: "World History",
-    description:
-      "Comprehensive assessment of ancient civilizations and their impact on modern society",
-    type: "exam",
-    questions: 50,
-    timeLimit: 120, // minutes
-    dueDate: "2023-10-05T23:59:59",
-    status: "not_started",
-    category: "History",
-  },
-];
+// Define assessment interface
+interface AssessmentQuestion {
+  id: string;
+  text: string;
+  options: Array<{ id: string; text: string }>;
+}
 
+interface Assessment {
+  _id: string;
+  title: string;
+  description: string;
+  courseId: string;
+  course?: {
+    _id: string;
+    title: string;
+  };
+  type: "quiz" | "exam";
+  timeLimit: number;
+  dueDate: string;
+  category: string;
+  status: "not_started" | "in_progress" | "completed";
+  progress?: number;
+  score?: number;
+  questions: AssessmentQuestion[];
+}
+
+interface AssessmentResponse {
+  assessment: Assessment[];
+}
+
+// Mock certificates data (we'll keep this for now)
 const certificates = [
   {
     id: "cert-1",
@@ -124,24 +90,46 @@ const certificates = [
   },
 ];
 
-const categories = [
-  "All Categories",
-  "Mathematics",
-  "Literature",
-  "Physics",
-  "Computer Science",
-  "History",
-];
-
 export function AssessmentList() {
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [searchQuery, setSearchQuery] = useState("");
+  const { user } = useAuth();
+
+  // Fetch assessments using React Query
+  const { data, isLoading, error } = useQuery<AssessmentResponse>({
+    queryKey: ["assessments"],
+    queryFn: async () => {
+      const response = await getAssessmentForUser();
+      return response as AssessmentResponse;
+    },
+    enabled: !!user,
+  });
+
+  // Extract assessments from the response
+  const assessments: Assessment[] = data?.assessment || [];
+
+  // Extract unique categories from assessments
+  const categories = ["All Categories"];
+  const uniqueCategories = new Set<string>();
+
+  assessments.forEach((assessment) => {
+    if (assessment.category) {
+      uniqueCategories.add(assessment.category);
+    }
+  });
+
+  // Add unique categories to the categories array
+  uniqueCategories.forEach((category) => {
+    categories.push(category);
+  });
 
   // Filter assessments based on search query and category
-  const filteredAssessments = assessments.filter((assessment) => {
+  const filteredAssessments = assessments.filter((assessment: Assessment) => {
     const matchesSearch =
       assessment.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      assessment.course.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (assessment.course?.title || "")
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase()) ||
       assessment.description.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesCategory =
@@ -214,100 +202,122 @@ export function AssessmentList() {
         </div>
 
         <TabsContent value="assessments" className="mt-6">
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredAssessments.map((assessment) => (
-              <Card key={assessment.id}>
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <Badge variant="outline" className="mb-2">
-                        {assessment.category}
-                      </Badge>
-                      <CardTitle>{assessment.title}</CardTitle>
-                      <CardDescription>{assessment.course}</CardDescription>
+          {isLoading ? (
+            <div className="flex h-40 w-full items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <span className="ml-2">Loading assessments...</span>
+            </div>
+          ) : error ? (
+            <div className="mt-8 text-center">
+              <h3 className="text-lg font-medium">Error loading assessments</h3>
+              <p className="text-muted-foreground">
+                Please try refreshing the page
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {filteredAssessments.map((assessment: Assessment) => (
+                <Card key={assessment._id}>
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <Badge variant="outline" className="mb-2">
+                          {assessment.category}
+                        </Badge>
+                        <CardTitle>{assessment.title}</CardTitle>
+                        <CardDescription>
+                          {assessment.course?.title || "No course assigned"}
+                        </CardDescription>
+                      </div>
+                      {assessment.status === "completed" ? (
+                        <Badge className="bg-green-500 hover:bg-green-600">
+                          {assessment.score}%
+                        </Badge>
+                      ) : assessment.status === "in_progress" ? (
+                        <Badge variant="secondary">In Progress</Badge>
+                      ) : (
+                        <Badge variant="outline">
+                          {getDaysRemaining(assessment.dueDate) <= 2 ? (
+                            <span className="text-red-500">Due Soon</span>
+                          ) : (
+                            "Not Started"
+                          )}
+                        </Badge>
+                      )}
                     </div>
-                    {assessment.status === "completed" ? (
-                      <Badge className="bg-green-500 hover:bg-green-600">
-                        {assessment.score}%
-                      </Badge>
-                    ) : assessment.status === "in_progress" ? (
-                      <Badge variant="secondary">In Progress</Badge>
-                    ) : (
-                      <Badge variant="outline">
-                        {getDaysRemaining(assessment.dueDate) <= 2 ? (
-                          <span className="text-red-500">Due Soon</span>
-                        ) : (
-                          "Not Started"
-                        )}
-                      </Badge>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="mb-4 text-sm">{assessment.description}</p>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div className="flex items-center">
-                      <FileText className="mr-2 h-4 w-4 text-muted-foreground" />
-                      <span>
-                        {assessment.questions}{" "}
-                        {assessment.questions === 1 ? "question" : "questions"}
-                      </span>
-                    </div>
-                    <div className="flex items-center">
-                      <Timer className="mr-2 h-4 w-4 text-muted-foreground" />
-                      <span>{assessment.timeLimit} min</span>
-                    </div>
-                    <div className="flex items-center">
-                      <Calendar className="mr-2 h-4 w-4 text-muted-foreground" />
-                      <span>Due: {formatDate(assessment.dueDate)}</span>
-                    </div>
-                    <div className="flex items-center">
-                      <Badge variant="outline">
-                        {assessment.type === "quiz" ? "Quiz" : "Exam"}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  {assessment.status === "in_progress" && (
-                    <div className="mt-4">
-                      <div className="mb-2 flex items-center justify-between text-sm">
-                        <span>Progress</span>
-                        <span className="font-medium">
-                          {assessment.progress}%
+                  </CardHeader>
+                  <CardContent>
+                    <p className="mb-4 text-sm">{assessment.description}</p>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div className="flex items-center">
+                        <FileText className="mr-2 h-4 w-4 text-muted-foreground" />
+                        <span>
+                          {assessment.questions?.length || 0}{" "}
+                          {assessment.questions?.length === 1
+                            ? "question"
+                            : "questions"}
                         </span>
                       </div>
-                      <Progress value={assessment.progress} className="h-2" />
+                      <div className="flex items-center">
+                        <Timer className="mr-2 h-4 w-4 text-muted-foreground" />
+                        <span>{assessment.timeLimit} min</span>
+                      </div>
+                      <div className="flex items-center">
+                        <Calendar className="mr-2 h-4 w-4 text-muted-foreground" />
+                        <span>Due: {formatDate(assessment.dueDate)}</span>
+                      </div>
+                      <div className="flex items-center">
+                        <Badge variant="outline">
+                          {assessment.type === "quiz" ? "Quiz" : "Exam"}
+                        </Badge>
+                      </div>
                     </div>
-                  )}
-                </CardContent>
-                <CardFooter>
-                  {assessment.status === "completed" ? (
-                    <Button variant="outline" asChild className="w-full">
-                      <Link href={`/assessments/${assessment.id}/results`}>
-                        <CheckCircle className="mr-2 h-4 w-4" />
-                        View Results
-                      </Link>
-                    </Button>
-                  ) : assessment.status === "in_progress" ? (
-                    <Button asChild className="w-full">
-                      <Link href={`/assessments/${assessment.id}`}>
-                        <Clock className="mr-2 h-4 w-4" />
-                        Continue
-                      </Link>
-                    </Button>
-                  ) : (
-                    <Button asChild className="w-full">
-                      <Link href={`/assessments/${assessment.id}`}>
-                        Start Assessment
-                      </Link>
-                    </Button>
-                  )}
-                </CardFooter>
-              </Card>
-            ))}
-          </div>
 
-          {filteredAssessments.length === 0 && (
+                    {assessment.status === "in_progress" &&
+                      assessment.progress !== undefined && (
+                        <div className="mt-4">
+                          <div className="mb-2 flex items-center justify-between text-sm">
+                            <span>Progress</span>
+                            <span className="font-medium">
+                              {assessment.progress}%
+                            </span>
+                          </div>
+                          <Progress
+                            value={assessment.progress}
+                            className="h-2"
+                          />
+                        </div>
+                      )}
+                  </CardContent>
+                  <CardFooter>
+                    {assessment.status === "completed" ? (
+                      <Button variant="outline" asChild className="w-full">
+                        <Link href={`/assessments/${assessment._id}/results`}>
+                          <CheckCircle className="mr-2 h-4 w-4" />
+                          View Results
+                        </Link>
+                      </Button>
+                    ) : assessment.status === "in_progress" ? (
+                      <Button asChild className="w-full">
+                        <Link href={`/assessments/${assessment._id}`}>
+                          <Clock className="mr-2 h-4 w-4" />
+                          Continue
+                        </Link>
+                      </Button>
+                    ) : (
+                      <Button asChild className="w-full">
+                        <Link href={`/assessments/${assessment._id}`}>
+                          Start Assessment
+                        </Link>
+                      </Button>
+                    )}
+                  </CardFooter>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {!isLoading && !error && filteredAssessments.length === 0 && (
             <div className="mt-8 text-center">
               <h3 className="text-lg font-medium">No assessments found</h3>
               <p className="text-muted-foreground">
@@ -358,7 +368,7 @@ export function AssessmentList() {
 
                   <div className="mt-4">
                     <p className="mb-2 text-sm text-muted-foreground">Skills</p>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-1">
                       {certificate.skills.map((skill) => (
                         <Badge key={skill} variant="secondary">
                           {skill}
@@ -367,14 +377,10 @@ export function AssessmentList() {
                     </div>
                   </div>
                 </CardContent>
-                <CardFooter className="flex gap-2">
-                  <Button variant="outline" className="flex-1">
+                <CardFooter>
+                  <Button variant="outline" className="w-full">
                     <Award className="mr-2 h-4 w-4" />
-                    View
-                  </Button>
-                  <Button variant="outline" className="flex-1">
-                    <FileText className="mr-2 h-4 w-4" />
-                    Download
+                    View Certificate
                   </Button>
                 </CardFooter>
               </Card>

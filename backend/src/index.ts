@@ -4,6 +4,8 @@ import cors from "cors";
 import authRoute from "../routes/auth.route";
 import courseRoute from "../routes/course.route";
 import assessmentsRoute from "../routes/assessments.route";
+import certificateRoute from "../routes/certificates.route";
+import studentRoute from "../routes/student.routes";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -23,6 +25,8 @@ app.get("/", (req: Request, res: Response) => {
 app.use("/api/auth", authRoute);
 app.use("/api/courses", courseRoute);
 app.use("/api/assessments", assessmentsRoute);
+app.use("/api/certificates", certificateRoute);
+app.use("/api/student", studentRoute);
 
 // Start Server
 app.listen(PORT, async () => {

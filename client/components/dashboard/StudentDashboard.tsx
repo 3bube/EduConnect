@@ -15,104 +15,64 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar, Clock, FileText, Play, Star, Users } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-
-// Mock data
-const ongoingCourses = [
-  {
-    id: "course-1",
-    title: "Introduction to Mathematics",
-    progress: 65,
-    nextLesson: "Algebra Fundamentals",
-    image: "/placeholder.svg?height=100&width=180",
-  },
-  {
-    id: "course-2",
-    title: "Advanced English Literature",
-    progress: 42,
-    nextLesson: "Shakespeare's Sonnets",
-    image: "/placeholder.svg?height=100&width=180",
-  },
-  {
-    id: "course-3",
-    title: "Physics 101",
-    progress: 78,
-    nextLesson: "Newton's Laws of Motion",
-    image: "/placeholder.svg?height=100&width=180",
-  },
-];
-
-const upcomingAssignments = [
-  {
-    id: "assignment-1",
-    title: "Mathematics Problem Set",
-    course: "Introduction to Mathematics",
-    dueDate: "2023-09-15T23:59:59",
-    status: "pending",
-  },
-  {
-    id: "assignment-2",
-    title: "Literary Analysis Essay",
-    course: "Advanced English Literature",
-    dueDate: "2023-09-18T23:59:59",
-    status: "pending",
-  },
-  {
-    id: "assignment-3",
-    title: "Physics Lab Report",
-    course: "Physics 101",
-    dueDate: "2023-09-20T23:59:59",
-    status: "pending",
-  },
-];
-
-const upcomingClasses = [
-  {
-    id: "class-1",
-    title: "Algebra Fundamentals",
-    course: "Introduction to Mathematics",
-    startTime: "2023-09-14T10:00:00",
-    endTime: "2023-09-14T11:30:00",
-    tutor: "Dr. Smith",
-  },
-  {
-    id: "class-2",
-    title: "Shakespeare's Sonnets Analysis",
-    course: "Advanced English Literature",
-    startTime: "2023-09-15T14:00:00",
-    endTime: "2023-09-15T15:30:00",
-    tutor: "Prof. Johnson",
-  },
-];
-
-const recommendedCourses = [
-  {
-    id: "rec-course-1",
-    title: "Chemistry Basics",
-    description: "Learn the fundamentals of chemistry and chemical reactions",
-    rating: 4.8,
-    students: 1245,
-    image: "/placeholder.svg?height=120&width=200",
-  },
-  {
-    id: "rec-course-2",
-    title: "Introduction to Computer Science",
-    description: "Explore programming concepts and algorithms",
-    rating: 4.9,
-    students: 2389,
-    image: "/placeholder.svg?height=120&width=200",
-  },
-  {
-    id: "rec-course-3",
-    title: "World History: Ancient Civilizations",
-    description: "Discover the wonders of ancient civilizations",
-    rating: 4.7,
-    students: 987,
-    image: "/placeholder.svg?height=120&width=200",
-  },
-];
+import { useQuery } from "@tanstack/react-query";
+import {
+  getEnrolledCourses,
+  getUpcomingAssignments,
+  getRecommendedCourses,
+  getUpcomingClasses,
+  getLearningStats,
+  EnrolledCourse,
+  UpcomingAssignment,
+  UpcomingClass,
+} from "@/api/student";
+import { Course } from "@/api/course";
 
 export function StudentDashboard() {
   const { user } = useAuth();
+
+  const { data: enrolledCourses = [], isLoading: isLoadingCourses } = useQuery<
+    EnrolledCourse[]
+  >({
+    queryKey: ["enrolledCourses"],
+    queryFn: getEnrolledCourses,
+    enabled: !!user?._id,
+  });
+
+  const { data: upcomingAssignments = [], isLoading: isLoadingAssignments } =
+    useQuery<UpcomingAssignment[]>({
+      queryKey: ["upcomingAssignments"],
+      queryFn: getUpcomingAssignments,
+      enabled: !!user?._id,
+    });
+
+  const { data: upcomingClasses = [], isLoading: isLoadingClasses } = useQuery<
+    UpcomingClass[]
+  >({
+    queryKey: ["upcomingClasses"],
+    queryFn: getUpcomingClasses,
+    enabled: !!user?._id,
+  });
+
+  const { data: recommendedCourses = [], isLoading: isLoadingRecommended } =
+    useQuery<Course[]>({
+      queryKey: ["recommendedCourses"],
+      queryFn: getRecommendedCourses,
+      enabled: !!user?._id,
+    });
+
+  const { data: stats, isLoading: isLoadingStats } = useQuery({
+    queryKey: ["learningStats"],
+    queryFn: getLearningStats,
+    enabled: !!user?._id,
+  });
+
+  const isLoading =
+    isLoadingCourses ||
+    isLoadingAssignments ||
+    isLoadingClasses ||
+    isLoadingRecommended ||
+    isLoadingStats;
 
   // Format date for display
   const formatDate = (dateString: string) => {
@@ -134,6 +94,19 @@ export function StudentDashboard() {
     return diffDays;
   };
 
+  if (isLoading) {
+    return (
+      <div className="container flex items-center justify-center py-20">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold">Loading your dashboard...</h2>
+          <p className="text-muted-foreground">
+            Please wait while we fetch your data
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container space-y-8 px-4 py-8 sm:px-6 lg:px-8">
       {/* Welcome Section */}
@@ -143,7 +116,7 @@ export function StudentDashboard() {
             Welcome back, {user?.name}
           </h1>
           <p className="text-muted-foreground">
-            Here&apos;s what&apos;s happening with your learning journey today.
+            Here&#39;s what&#39;s happening with your learning journey today.
           </p>
         </div>
         <div className="flex gap-2">
@@ -172,22 +145,32 @@ export function StudentDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium">Overall Completion</p>
-                <p className="text-2xl font-bold">62%</p>
+                <p className="text-2xl font-bold">
+                  {stats?.overallCompletion || 0}%
+                </p>
               </div>
               <div>
                 <p className="text-sm font-medium">Courses Enrolled</p>
-                <p className="text-2xl font-bold">3</p>
+                <p className="text-2xl font-bold">
+                  {stats?.coursesEnrolled || 0}
+                </p>
               </div>
               <div>
                 <p className="text-sm font-medium">Hours Studied</p>
-                <p className="text-2xl font-bold">42</p>
+                <p className="text-2xl font-bold">{stats?.hoursStudied || 0}</p>
               </div>
               <div>
                 <p className="text-sm font-medium">Assignments Completed</p>
-                <p className="text-2xl font-bold">12/18</p>
+                <p className="text-2xl font-bold">
+                  {stats?.assignmentsCompleted || 0}/
+                  {stats?.totalAssignments || 0}
+                </p>
               </div>
             </div>
-            <Progress value={62} className="h-2 w-full" />
+            <Progress
+              value={stats?.overallCompletion || 0}
+              className="h-2 w-full"
+            />
           </div>
         </CardContent>
       </Card>
@@ -197,43 +180,66 @@ export function StudentDashboard() {
         <h2 className="mb-4 text-2xl font-bold tracking-tight">
           Your Ongoing Courses
         </h2>
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {ongoingCourses.map((course) => (
-            <Card key={course.id} className="overflow-hidden">
-              <div className="aspect-video w-full">
-                <Image
-                  src={course.image || "/placeholder.svg"}
-                  alt={course.title}
-                  width={320}
-                  height={180}
-                  className="h-full w-full object-cover"
-                />
-              </div>
-              <CardHeader className="p-4">
-                <CardTitle className="text-lg">{course.title}</CardTitle>
-                <CardDescription>Next: {course.nextLesson}</CardDescription>
-              </CardHeader>
-              <CardContent className="p-4 pt-0">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">
-                    {course.progress}% complete
-                  </span>
-                  <span className="text-sm font-medium">
-                    {course.progress}/100
-                  </span>
+        {enrolledCourses.length === 0 ? (
+          <Card className="p-8 text-center">
+            <p className="mb-4 text-muted-foreground">
+              You haven&#39;t enrolled in any courses yet.
+            </p>
+            <Button asChild>
+              <Link href="/courses">Browse Courses</Link>
+            </Button>
+          </Card>
+        ) : (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {enrolledCourses.map((course) => (
+              <Card key={course._id} className="overflow-hidden">
+                <div className="relative h-[100px]">
+                  <Image
+                    src={
+                      course.image || "/placeholder.svg?height=100&width=180"
+                    }
+                    alt={course.title}
+                    fill
+                    className="object-cover"
+                  />
                 </div>
-                <Progress value={course.progress} className="h-2" />
-                <div className="mt-4">
-                  <Button asChild className="w-full">
-                    <Link href={`/courses/${course.id}`}>
-                      Continue Learning
-                    </Link>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg">{course.title}</CardTitle>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-muted-foreground">
+                      Progress: {course.progress}%
+                    </p>
+                    <Badge variant="outline">
+                      {course.completedLessons} / {course.lessons?.length || 0}{" "}
+                      Lessons
+                    </Badge>
+                  </div>
+                  <Progress value={course.progress} className="h-1" />
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <div className="flex items-start gap-2">
+                      <Play className="mt-0.5 h-4 w-4 text-primary" />
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground">
+                          Next Lesson
+                        </p>
+                        <p className="text-sm font-medium">
+                          {course.nextLesson?.title || "No upcoming lessons"}
+                        </p>
+                      </div>
+                    </div>
+                    <Button className="w-full" size="sm" asChild>
+                      <Link href={`/courses/${course._id}`}>
+                        Continue Learning
+                      </Link>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Upcoming Activities */}
@@ -247,80 +253,99 @@ export function StudentDashboard() {
             <TabsTrigger value="classes">Live Classes</TabsTrigger>
           </TabsList>
           <TabsContent value="assignments">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {upcomingAssignments.map((assignment) => (
-                <Card key={assignment.id}>
-                  <CardHeader className="p-4">
-                    <div className="flex items-start justify-between">
-                      <CardTitle className="text-lg">
-                        {assignment.title}
-                      </CardTitle>
-                      <Badge
-                        variant={
-                          getDaysRemaining(assignment.dueDate) <= 2
-                            ? "destructive"
-                            : "outline"
-                        }
-                      >
-                        {getDaysRemaining(assignment.dueDate)} days left
-                      </Badge>
-                    </div>
-                    <CardDescription>{assignment.course}</CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-4 pt-0">
-                    <div className="flex items-center text-sm text-muted-foreground">
-                      <Clock className="mr-1 h-4 w-4" />
-                      Due: {formatDate(assignment.dueDate)}
-                    </div>
-                    <div className="mt-4">
-                      <Button asChild variant="outline" className="w-full">
-                        <Link href={`/assignments/${assignment.id}`}>
-                          <FileText className="mr-2 h-4 w-4" />
-                          View Assignment
-                        </Link>
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            {upcomingAssignments.length === 0 ? (
+              <Card className="p-8 text-center">
+                <p className="text-muted-foreground">
+                  You don&#39;t have any upcoming assignments.
+                </p>
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                {upcomingAssignments.map((assignment) => (
+                  <Card key={assignment.id}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-3">
+                          <FileText className="mt-1 h-5 w-5 text-primary" />
+                          <div>
+                            <h3 className="font-medium">{assignment.title}</h3>
+                            <p className="text-sm text-muted-foreground">
+                              {assignment.courseName}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <Badge
+                            variant={
+                              assignment.status === "completed"
+                                ? "success"
+                                : assignment.status === "overdue"
+                                ? "destructive"
+                                : "outline"
+                            }
+                          >
+                            {assignment.status === "completed"
+                              ? "Completed"
+                              : assignment.status === "overdue"
+                              ? "Overdue"
+                              : `${getDaysRemaining(
+                                  assignment.dueDate
+                                )} days left`}
+                          </Badge>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Due {formatDate(assignment.dueDate)}
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </TabsContent>
           <TabsContent value="classes">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {upcomingClasses.map((classItem) => (
-                <Card key={classItem.id}>
-                  <CardHeader className="p-4">
-                    <div className="flex items-start justify-between">
-                      <CardTitle className="text-lg">
-                        {classItem.title}
-                      </CardTitle>
-                      <Badge>Live</Badge>
-                    </div>
-                    <CardDescription>{classItem.course}</CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-4 pt-0">
-                    <div className="space-y-2 text-sm text-muted-foreground">
-                      <div className="flex items-center">
-                        <Calendar className="mr-1 h-4 w-4" />
-                        {formatDate(classItem.startTime)}
+            {upcomingClasses.length === 0 ? (
+              <Card className="p-8 text-center">
+                <p className="text-muted-foreground">
+                  You don&#39;t have any upcoming live classes.
+                </p>
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                {upcomingClasses.map((liveClass) => (
+                  <Card key={liveClass.id}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-3">
+                          <Calendar className="mt-1 h-5 w-5 text-primary" />
+                          <div>
+                            <h3 className="font-medium">{liveClass.title}</h3>
+                            <p className="text-sm text-muted-foreground">
+                              {liveClass.courseName}
+                            </p>
+                            <p className="mt-1 text-xs">
+                              <span className="font-medium">Tutor:</span>{" "}
+                              {liveClass.tutor}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            <p className="text-xs">
+                              {formatDate(liveClass.startTime)}
+                            </p>
+                          </div>
+                          <Button size="sm" className="mt-2">
+                            Join Class
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex items-center">
-                        <Users className="mr-1 h-4 w-4" />
-                        Tutor: {classItem.tutor}
-                      </div>
-                    </div>
-                    <div className="mt-4">
-                      <Button asChild className="w-full">
-                        <Link href={`/live-classes/${classItem.id}`}>
-                          <Play className="mr-2 h-4 w-4" />
-                          Join Class
-                        </Link>
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>
@@ -328,44 +353,57 @@ export function StudentDashboard() {
       {/* Recommended Courses */}
       <div>
         <h2 className="mb-4 text-2xl font-bold tracking-tight">
-          Recommended for You
+          Recommended For You
         </h2>
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {recommendedCourses.map((course) => (
-            <Card key={course.id} className="overflow-hidden">
-              <div className="aspect-video w-full">
-                <Image
-                  src={course.image || "/placeholder.svg"}
-                  alt={course.title}
-                  width={320}
-                  height={180}
-                  className="h-full w-full object-cover"
-                />
-              </div>
-              <CardHeader className="p-4">
-                <CardTitle className="text-lg">{course.title}</CardTitle>
-                <CardDescription className="line-clamp-2">
-                  {course.description}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-4 pt-0">
-                <div className="mb-4 flex items-center justify-between">
-                  <div className="flex items-center">
-                    <Star className="mr-1 h-4 w-4 fill-yellow-400 text-yellow-400" />
-                    <span className="text-sm font-medium">{course.rating}</span>
-                  </div>
-                  <div className="flex items-center text-sm text-muted-foreground">
-                    <Users className="mr-1 h-4 w-4" />
-                    {course.students} students
-                  </div>
+        {recommendedCourses.length === 0 ? (
+          <Card className="p-8 text-center">
+            <p className="text-muted-foreground">
+              No recommended courses available at the moment.
+            </p>
+          </Card>
+        ) : (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {recommendedCourses.map((course) => (
+              <Card key={course._id} className="overflow-hidden">
+                <div className="relative h-[120px]">
+                  <Image
+                    src={
+                      course.image || "/placeholder.svg?height=120&width=200"
+                    }
+                    alt={course.title}
+                    fill
+                    className="object-cover"
+                  />
                 </div>
-                <Button asChild variant="outline" className="w-full">
-                  <Link href={`/courses/${course.id}`}>View Course</Link>
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg">{course.title}</CardTitle>
+                  <p className="line-clamp-2 text-sm text-muted-foreground">
+                    {course.description}
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <div className="mb-4 flex items-center justify-between">
+                    <div className="flex items-center gap-1">
+                      <Star className="h-4 w-4 fill-primary text-primary" />
+                      <span className="text-sm font-medium">
+                        {course.rating || 0}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Users className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">
+                        {course.numberOfStudents || 0} students
+                      </span>
+                    </div>
+                  </div>
+                  <Button className="w-full" size="sm" asChild>
+                    <Link href={`/courses/${course._id}`}>View Course</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

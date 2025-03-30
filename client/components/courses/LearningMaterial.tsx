@@ -51,6 +51,8 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
     staleTime: 60 * 60 * 1000, // 1 hour
   });
 
+  console.log();
+
   const { mutate: markLessonCompleteMutation } = useMutation<
     Course,
     Error,
@@ -74,7 +76,7 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
   const currentModule = course?.modules?.[currentModuleIndex];
   const currentLesson = course?.lessons?.[currentLessonIndex];
 
-  console.log("Current Lesson:", currentLesson);
+  console.log(currentLesson);
 
   // Calculate total lessons and completed lessons
   const totalLessons = course?.modules?.reduce(
@@ -274,7 +276,7 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
             >
               <TabsList>
                 <TabsTrigger value="content">Content</TabsTrigger>
-                <TabsTrigger value="discussion">Discussion</TabsTrigger>
+                {/* <TabsTrigger value="discussion">Discussion</TabsTrigger> */}
                 <TabsTrigger value="resources">Resources</TabsTrigger>
               </TabsList>
 
@@ -283,10 +285,6 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
                 currentLesson?.content ? (
                   <div className="space-y-6">
                     <div className="aspect-video overflow-hidden rounded-lg">
-                      {console.log(
-                        "Video URL:",
-                        currentLesson.content.videoUrl
-                      )}
                       <iframe
                         src={`https://www.youtube.com/embed/${
                           currentLesson.content.videoUrl

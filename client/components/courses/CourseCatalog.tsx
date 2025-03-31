@@ -185,7 +185,11 @@ export function CourseCatalog() {
 }
 
 function CourseCard({ course }: { course: Course }) {
-  const defaultImage = `https://source.unsplash.com/800x400/?${encodeURIComponent(course.category.toLowerCase())}`;
+  const defaultImage = `https://source.unsplash.com/800x400/?${encodeURIComponent(
+    course.category.toLowerCase()
+  )}`;
+
+  console.log(course.image);
 
   return (
     <Card className="overflow-hidden">
@@ -201,6 +205,7 @@ function CourseCard({ course }: { course: Course }) {
       <CardHeader className="space-y-2">
         <div className="flex items-start justify-between">
           <div>
+            *
             <CardTitle className="line-clamp-1 text-lg">
               {course.title}
             </CardTitle>

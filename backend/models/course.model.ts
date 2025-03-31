@@ -56,7 +56,7 @@ const CourseSchema: Schema = new Schema<ICourse>(
       name: { type: String, required: true },
       title: { type: String },
       bio: { type: String },
-      avatar: { type: String, required: true },
+      avatar: { type: String },
     },
     price: { type: Number, required: true },
     image: { type: String, required: true },

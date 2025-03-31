@@ -58,7 +58,7 @@ interface Assessment {
   category: string;
   status: "not_started" | "in_progress" | "completed";
   progress?: number;
-  score?: number;
+  averageScore?: number;
   questions: AssessmentQuestion[];
 }
 
@@ -107,6 +107,8 @@ export function AssessmentList() {
 
   // Extract assessments from the response
   const assessments: Assessment[] = data?.assessment || [];
+
+  console.log(assessments);
 
   // Extract unique categories from assessments
   const categories = ["All Categories"];
@@ -225,13 +227,13 @@ export function AssessmentList() {
                           {assessment.category}
                         </Badge>
                         <CardTitle>{assessment.title}</CardTitle>
-                        <CardDescription>
+                        {/* <CardDescription>
                           {assessment.course?.title || "No course assigned"}
-                        </CardDescription>
+                        </CardDescription> */}
                       </div>
                       {assessment.status === "completed" ? (
                         <Badge className="bg-green-500 hover:bg-green-600">
-                          {assessment.score}%
+                          {assessment.averageScore}%
                         </Badge>
                       ) : assessment.status === "in_progress" ? (
                         <Badge variant="secondary">In Progress</Badge>
@@ -292,7 +294,9 @@ export function AssessmentList() {
                   <CardFooter>
                     {assessment.status === "completed" ? (
                       <Button variant="outline" asChild className="w-full">
-                        <Link href={`/assessments/${assessment._id}/results`}>
+                        <Link
+                          href={`/assessments/${assessment._id}/results.tsx`}
+                        >
                           <CheckCircle className="mr-2 h-4 w-4" />
                           View Results
                         </Link>

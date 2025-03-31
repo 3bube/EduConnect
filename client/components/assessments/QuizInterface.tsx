@@ -27,6 +27,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { getQuestion } from "@/api/assessment";
 import { useQuery } from "@tanstack/react-query";
+import { submitAssessment } from "@/api/assessment";
 
 // Define interfaces for the question data
 interface Question {
@@ -55,19 +56,27 @@ export function QuizInterface({ assessmentId }: { assessmentId: string }) {
   const [timeRemaining, setTimeRemaining] = useState(30 * 60); // Default 30 minutes, will be updated
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmSubmit, setShowConfirmSubmit] = useState(false);
-  const [progress, setProgress] = useState(0);
 
   // Submit assessment - defined early to avoid the "used before declaration" error
-  const handleSubmit = useCallback(() => {
+  const handleSubmit = useCallback(async () => {
     setIsSubmitting(true);
 
-    // In a real app, this would submit the answers to the server
-    // For now, we'll just navigate to the results page
-    setTimeout(() => {
+    try {
+      const response = await submitAssessment(
+        assessmentId,
+        answers,
+        timeRemaining
+      );
+      console.log("Response:", response);
       // Navigate to the results page using the correct Next.js route structure
       router.push(`/assessments/${assessmentId}/results.tsx`);
-    }, 1500);
-  }, [assessmentId, router]);
+    } catch (error) {
+      console.error("Failed to submit assessment:", error);
+      // Handle the error appropriately
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [assessmentId, answers, timeRemaining, router]);
 
   // Fetch questions data
   const {
@@ -109,6 +118,19 @@ export function QuizInterface({ assessmentId }: { assessmentId: string }) {
     }
   }, [questionsData]);
 
+  const answeredQuestionsCount = useMemo(() => {
+    return Object.keys(answers).filter((questionId) => {
+      const answer = answers[questionId];
+      return Array.isArray(answer) ? answer.length > 0 : !!answer;
+    }).length;
+  }, [answers]);
+
+  const progress = useMemo(() => {
+    return totalQuestions > 0
+      ? (answeredQuestionsCount / totalQuestions) * 100
+      : 0;
+  }, [answeredQuestionsCount, totalQuestions]);
+
   // Timer
   useEffect(() => {
     const timer = setInterval(() => {
@@ -136,12 +158,7 @@ export function QuizInterface({ assessmentId }: { assessmentId: string }) {
 
   // Handle single choice answer
   const handleSingleChoiceAnswer = (questionId: string, optionId: string) => {
-    setAnswers((prev) => {
-      const newAnswers = { ...prev, [questionId]: optionId };
-      // Update progress after updating answers
-      setTimeout(() => updateProgress(newAnswers), 0);
-      return newAnswers;
-    });
+    setAnswers((prev) => ({ ...prev, [questionId]: optionId }));
   };
 
   // Handle multiple choice answer
@@ -152,41 +169,14 @@ export function QuizInterface({ assessmentId }: { assessmentId: string }) {
   ) => {
     setAnswers((prev) => {
       const currentAnswers = (prev[questionId] as string[]) || [];
-      let newAnswers;
-
-      if (checked) {
-        newAnswers = { ...prev, [questionId]: [...currentAnswers, optionId] };
-      } else {
-        newAnswers = {
-          ...prev,
-          [questionId]: currentAnswers.filter((id) => id !== optionId),
-        };
-      }
-
-      // Update progress after updating answers
-      setTimeout(() => updateProgress(newAnswers), 0);
-      return newAnswers;
+      return {
+        ...prev,
+        [questionId]: checked
+          ? [...currentAnswers, optionId]
+          : currentAnswers.filter((id) => id !== optionId),
+      };
     });
   };
-
-  // Calculate and update progress
-  const updateProgress = useCallback(
-    (currentAnswers?: Record<string, string | string[]>) => {
-      const answersToCount = currentAnswers || answers;
-      if (totalQuestions === 0) {
-        setProgress(0);
-      } else {
-        const answeredQuestions = Object.keys(answersToCount).length;
-        setProgress((answeredQuestions / totalQuestions) * 100);
-      }
-    },
-    [answers, totalQuestions]
-  );
-
-  // Make sure to update progress when total questions change
-  useEffect(() => {
-    updateProgress();
-  }, [updateProgress]);
 
   // Toggle flagged question
   const toggleFlaggedQuestion = (questionId: string) => {
@@ -284,7 +274,7 @@ export function QuizInterface({ assessmentId }: { assessmentId: string }) {
         <div className="mb-2 flex items-center justify-between text-sm">
           <span>Progress</span>
           <span>
-            {Object.keys(answers).length}/{totalQuestions} questions answered
+            {answeredQuestionsCount}/{totalQuestions} questions answered
           </span>
         </div>
         <Progress value={progress} className="h-2" />
@@ -334,7 +324,7 @@ export function QuizInterface({ assessmentId }: { assessmentId: string }) {
                   <RadioGroup
                     value={answers[currentQuestion.id] as string}
                     onValueChange={(value) =>
-                      handleSingleChoiceAnswer(currentQuestion.id, value)
+                      handleSingleChoiceAnswer(currentQuestion._id, value)
                     }
                   >
                     <div className="space-y-2">
@@ -346,11 +336,11 @@ export function QuizInterface({ assessmentId }: { assessmentId: string }) {
                           >
                             <RadioGroupItem
                               value={option}
-                              id={`${currentQuestion.id}-${index}`}
+                              id={`${currentQuestion._id}-${index}`}
                               className="peer"
                             />
                             <Label
-                              htmlFor={`${currentQuestion.id}-${index}`}
+                              htmlFor={`${currentQuestion._id}-${index}`}
                               className="flex-1 cursor-pointer"
                             >
                               {option}
@@ -371,16 +361,16 @@ export function QuizInterface({ assessmentId }: { assessmentId: string }) {
                           className="flex items-center space-x-2 rounded-md border p-3 hover:bg-muted/50"
                         >
                           <Checkbox
-                            id={`${currentQuestion.id}-${index}`}
+                            id={`${currentQuestion._id}-${index}`}
                             checked={
-                              Array.isArray(answers[currentQuestion.id]) &&
+                              Array.isArray(answers[currentQuestion._id]) &&
                               (
-                                answers[currentQuestion.id] as string[]
+                                answers[currentQuestion._id] as string[]
                               ).includes(option)
                             }
                             onCheckedChange={(checked) =>
                               handleMultipleChoiceAnswer(
-                                currentQuestion.id,
+                                currentQuestion._id,
                                 option,
                                 checked as boolean
                               )
@@ -388,7 +378,7 @@ export function QuizInterface({ assessmentId }: { assessmentId: string }) {
                             className="peer"
                           />
                           <Label
-                            htmlFor={`${currentQuestion.id}-${index}`}
+                            htmlFor={`${currentQuestion._id}-${index}`}
                             className="flex-1 cursor-pointer"
                           >
                             {option}
@@ -463,17 +453,17 @@ export function QuizInterface({ assessmentId }: { assessmentId: string }) {
               <div className="grid grid-cols-5 gap-2">
                 {questions.map((question: Question, index: number) => (
                   <Button
-                    key={question.id}
+                    key={question._id}
                     variant={
                       currentQuestionIndex === index
                         ? "default"
-                        : answers[question.id]
+                        : answers[question._id]
                         ? "outline"
                         : "ghost"
                     }
                     size="sm"
                     className={`h-10 w-10 ${
-                      flaggedQuestions.includes(question.id)
+                      flaggedQuestions.includes(question._id)
                         ? "border-2 border-yellow-500"
                         : ""
                     }`}

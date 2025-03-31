@@ -71,13 +71,13 @@ export function MainNav() {
       active: isActive("/assessments"),
       roles: ["student", "tutor", "parent", "admin"],
     },
-    {
-      title: "Assignments",
-      href: "/assignments",
-      icon: <ClipboardList className="mr-2 h-4 w-4" />,
-      active: isActive("/assignments"),
-      roles: ["student", "tutor", "parent", "admin"],
-    },
+    // {
+    //   title: "Assignments",
+    //   href: "/assignments",
+    //   icon: <ClipboardList className="mr-2 h-4 w-4" />,
+    //   active: isActive("/assignments"),
+    //   roles: ["student", "tutor", "parent", "admin"],
+    // },
     {
       title: "Career",
       href: "/career",

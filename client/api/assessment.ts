@@ -34,8 +34,15 @@ export const getAssessmentById = (id: string) =>
 export const startAssessment = (id: string) =>
   requestHandler(newRequest.post(`/assessments/${id}/start`));
 
-export const submitAssessment = (id: string) =>
-  requestHandler(newRequest.post(`/assessments/${id}/submit`));
+export const submitAssessment = (
+  id: string,
+  answers: Record<string, string | string[]>,
+  timeSpent: number
+) => {
+  return requestHandler(
+    newRequest.post(`/assessments/${id}/submit`, { answers, timeSpent })
+  );
+};
 
 export const getAssessmentResults = (id: string) =>
   requestHandler(newRequest.get(`/assessments/${id}/results`));

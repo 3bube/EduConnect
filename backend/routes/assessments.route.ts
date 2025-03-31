@@ -52,13 +52,6 @@ router.post(
     CreateAssessment(req, res, next)
 );
 
-router.post(
-  "/:id/submit-results",
-  authMiddleware,
-  (req: Request, res: Response, next: NextFunction) =>
-    SubmitAssessment(req, res, next)
-);
-
 router.get(
   "/:id/question",
   authMiddleware,

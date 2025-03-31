@@ -4,19 +4,22 @@ import { handleAsync } from "../utils/handler";
 import Assessment from "../models/assessment.models";
 import User from "../models/user.model";
 import Question from "../models/question.models";
-import { IAssessmentAnswer } from "../interface/assessments.interface";
+import {
+  IAssessmentAnswer,
+  IAssessmentSubmission,
+} from "../interface/assessments.interface";
 import { IQuestion } from "../models/question.models";
 import mongoose from "mongoose";
 
 export const GetAssessment = handleAsync(
   async (req: ExtendedRequest, res: Response, next: NextFunction) => {
-    if (!req.user) {
+    if (!req.userId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
     const { status, category, search, page = "1", limit = "10" } = req.query;
 
-    const query: any = { userId: req.user.id };
+    const query: any = { userId: req.userId };
 
     if (status) query.status = status;
     if (category) query.category = category;
@@ -57,7 +60,7 @@ export const GetAssessment = handleAsync(
 // Get assessment by id
 export const GetAssessmentById = handleAsync(
   async (req: ExtendedRequest, res: Response, next: NextFunction) => {
-    if (!req.user) {
+    if (!req.userId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
@@ -75,7 +78,7 @@ export const GetAssessmentById = handleAsync(
 // Start assessment
 export const StartAssessment = handleAsync(
   async (req: ExtendedRequest, res: Response, next: NextFunction) => {
-    if (!req.user) {
+    if (!req.userId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
@@ -93,13 +96,14 @@ export const StartAssessment = handleAsync(
 // Submit assessment
 export const SubmitAssessment = handleAsync(
   async (req: ExtendedRequest, res: Response, next: NextFunction) => {
-    if (!req.user) {
+    if (!req.userId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
     const { answers, timeSpent } = req.body;
     const assessmentId = req.params.id;
 
+    // Find assessment with populated questions
     const assessment = await Assessment.findById(assessmentId)
       .populate<{
         questions: (IQuestion & { _id: mongoose.Types.ObjectId })[];
@@ -110,59 +114,106 @@ export const SubmitAssessment = handleAsync(
       return res.status(404).json({ message: "Assessment not found" });
     }
 
-    // Calculate score based on correct answers
-    const gradedAnswers: IAssessmentAnswer[] = answers.map((answer: any) => {
-      const question = assessment.questions.find(
-        (q) => q._id.toString() === answer.questionId
-      );
+    // Convert answers object to array format if needed
+    const answersArray = Array.isArray(answers)
+      ? answers
+      : Object.entries(answers).map(([questionId, selectedAnswer]) => ({
+          questionId,
+          selectedAnswer,
+        }));
 
-      if (!question) {
+    // Grade each answer
+    const gradedAnswers: IAssessmentAnswer[] = assessment.questions.map(
+      (question) => {
+        const userAnswer = answersArray.find(
+          (a: any) => a.questionId === question._id.toString()
+        );
+
+        if (!userAnswer) {
+          return {
+            questionId: question._id,
+            isCorrect: false,
+            selectedAnswer: null,
+            selectedAnswers: [],
+          };
+        }
+
+        let isCorrect = false;
+
+        console.log("here1");
+
+        switch (question.type) {
+          case "multiple-select":
+            // Handle case where answers might be in object format
+            const userSelections = Array.isArray(userAnswer.selectedAnswers)
+              ? userAnswer.selectedAnswers
+              : Object.values(userAnswer.selectedAnswers || {});
+
+            isCorrect = arraysEqual(
+              question.correctAnswers?.sort() || [],
+              userSelections.sort()
+            );
+            break;
+
+          case "multiple-choice":
+          case "true-false":
+            isCorrect = question.correctAnswer === userAnswer.selectedAnswer;
+            break;
+
+          default:
+            isCorrect = false;
+        }
+
         return {
-          questionId: new mongoose.Types.ObjectId(answer.questionId),
-          selectedAnswer: answer.selectedAnswer,
-          selectedAnswers: answer.selectedAnswers,
-          isCorrect: false,
+          questionId: question._id,
+          isCorrect,
+          selectedAnswer: userAnswer.selectedAnswer,
+          selectedAnswers: Array.isArray(userAnswer.selectedAnswers)
+            ? userAnswer.selectedAnswers
+            : [userAnswer.selectedAnswer].filter(Boolean),
         };
       }
+    );
 
-      const isCorrect =
-        question.type === "multiple-select"
-          ? arraysEqual(
-              question.correctAnswers || [],
-              answer.selectedAnswers || []
-            )
-          : question.correctAnswer === answer.selectedAnswer;
+    // Calculate score
+    const correctCount = gradedAnswers.filter((a) => a.isCorrect).length;
+    const totalQuestions = assessment.questions.length;
+    const score = Math.round((correctCount / totalQuestions) * 100);
+    const isPassed = score >= assessment.passingScore;
 
-      return {
-        questionId: question._id,
-        selectedAnswer: answer.selectedAnswer,
-        selectedAnswers: answer.selectedAnswers,
-        isCorrect,
-      };
-    });
-
-    const score =
-      (gradedAnswers.filter((a) => a.isCorrect).length /
-        assessment.questions.length) *
-      100;
-
-    // Add submission
-    assessment.submissions.push({
-      userId: req.user.id,
+    // Create submission
+    const submission: IAssessmentSubmission = {
+      userId: new mongoose.Types.ObjectId(req.userId),
       answers: gradedAnswers,
-      timeSpent,
+      timeSpent, // in seconds
       score,
       submittedAt: new Date(),
-    });
+    };
 
+    // Update assessment
+    assessment.submissions.push(submission);
+    assessment.status = "completed";
     await assessment.save();
 
-    res.status(200).json({
+    console.log("here2");
+
+    // Prepare response data
+    const response = {
       message: "Assessment submitted successfully",
+      assessmentId: assessment._id,
       score,
-      totalQuestions: assessment.questions.length,
-      correctAnswers: gradedAnswers.filter((a) => a.isCorrect).length,
-    });
+      totalQuestions,
+      correctAnswers: correctCount,
+      incorrectAnswers: totalQuestions - correctCount,
+      percentage: score,
+      isPassed,
+      passingScore: assessment.passingScore,
+      timeSpent,
+      submittedAt: submission.submittedAt,
+    };
+
+    console.log("response", response);
+    res.status(200).json(response);
   }
 );
 
@@ -281,7 +332,7 @@ export const getAssessmentForUser = handleAsync(
     // Find assessments for enrolled courses
     const assessment = await Assessment.find({
       course: { $in: enrolledCourses },
-    }).populate("course", "title");
+    }).populate("course");
 
     // Return empty array instead of 404 if no assessments found
     if (!assessment || assessment.length === 0) {
@@ -349,17 +400,21 @@ export const getQuestion = handleAsync(
 // get results for an assessment submission
 export const getAssessmentResults = handleAsync(
   async (req: ExtendedRequest, res: Response, next: NextFunction) => {
-    // Check if user is authenticated using the correct property based on your auth middleware
     if (!req.userId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
     const { id } = req.params;
 
+    console.log("results for", req.userId);
+
     try {
-      // Find the assessment
+      // Find the assessment with populated questions and submissions
       const assessment = await Assessment.findById(id)
-        .populate("questions")
+        .populate({
+          path: "questions",
+          select: "text type options correctAnswer category",
+        })
         .populate("course", "title")
         .lean();
 
@@ -367,33 +422,30 @@ export const getAssessmentResults = handleAsync(
         return res.status(404).json({ message: "Assessment not found" });
       }
 
-      // For testing purposes, we'll create a mock submission if none exists
-      // In a real application, you should remove this and only show results for actual submissions
+      console.log("assessment found");
+
+      // Find the user's actual submission
       const userSubmission = assessment.submissions?.find(
         (submission) => submission.userId.toString() === req.userId
-      ) || {
-        userId: req.userId,
-        score: 80, // Sample score
-        timeSpent: 1200, // Sample time spent (20 minutes)
-        submittedAt: new Date(),
-        answers: assessment.questions.map((q: any) => ({
-          questionId: q._id,
-          isCorrect: Math.random() > 0.3, // 70% chance of being correct for testing
-          selectedAnswer: q.options ? q.options[0] : "Sample answer",
-        })),
-      };
+      );
 
-      // Calculate results
+      console.log("user submission found");
+
+      if (!userSubmission) {
+        return res.status(404).json({ message: "Submission not found" });
+      }
+
+      // Calculate actual results
       const totalQuestions = assessment.questions.length;
-      const correctAnswers = userSubmission.answers.filter(
-        (answer) => answer.isCorrect
-      ).length;
+      const correctAnswers = userSubmission.answers.reduce(
+        (count, answer) => (answer.isCorrect ? count + 1 : count),
+        0
+      );
       const incorrectAnswers = totalQuestions - correctAnswers;
-      const score = userSubmission.score;
-      const percentage = (score / totalQuestions) * 100;
+      const percentage = (correctAnswers / totalQuestions) * 100;
       const isPassed = percentage >= assessment.passingScore;
 
-      // Group questions by correct/incorrect
+      // Map question results with actual correct answers
       const questionResults = assessment.questions.map((question: any) => {
         const userAnswer = userSubmission.answers.find(
           (a) => a.questionId.toString() === question._id.toString()
@@ -403,55 +455,45 @@ export const getAssessmentResults = handleAsync(
           id: question._id,
           text: question.text,
           type: question.type,
-          userAnswer: userAnswer?.selectedAnswer || [],
-          correctAnswer:
-            question.correctAnswer || question.correctAnswers || [],
+          userAnswer:
+            userAnswer?.selectedAnswer || userAnswer?.selectedAnswers || [],
+          correctAnswer: question.correctAnswer,
           isCorrect: userAnswer?.isCorrect || false,
           category: question.category || "general",
         };
       });
 
-      // Calculate strengths and weaknesses based on categories
-      const categoriesMap: Record<string, { total: number; correct: number }> =
-        {};
-
-      questionResults.forEach((q) => {
-        // Get the category from the question
-        const category = q.category;
-        if (!categoriesMap[category]) {
-          categoriesMap[category] = { total: 0, correct: 0 };
-        }
-        categoriesMap[category].total++;
-        if (q.isCorrect) {
-          categoriesMap[category].correct++;
-        }
-      });
+      // Calculate performance metrics
+      const categoriesMap = questionResults.reduce(
+        (acc, q) => {
+          const category = q.category;
+          if (!acc[category]) {
+            acc[category] = { total: 0, correct: 0 };
+          }
+          acc[category].total++;
+          if (q.isCorrect) acc[category].correct++;
+          return acc;
+        },
+        {} as Record<string, { total: number; correct: number }>
+      );
 
       const strengths: string[] = [];
       const weaknesses: string[] = [];
 
       Object.entries(categoriesMap).forEach(([category, stats]) => {
         const categoryScore = (stats.correct / stats.total) * 100;
-        if (categoryScore >= 70) {
-          strengths.push(category);
-        } else if (categoryScore < 50) {
-          weaknesses.push(category);
-        }
+        if (categoryScore >= 70) strengths.push(category);
+        if (categoryScore < 50) weaknesses.push(category);
       });
 
-      // Generate recommendations based on weaknesses
-      const recommendations: string[] = weaknesses.map(
-        (w) => `Review concepts related to ${w}`
-      );
-
-      // Prepare the response
+      // Prepare final response
       const results = {
         assessmentId: assessment._id,
         title: assessment.title,
         courseTitle: assessment.course || "No course",
         submittedAt: userSubmission.submittedAt,
-        timeSpent: userSubmission.timeSpent, // in seconds
-        score,
+        timeSpent: userSubmission.timeSpent,
+        score: correctAnswers, // Actual score based on correct answers
         totalQuestions,
         correctAnswers,
         incorrectAnswers,
@@ -462,13 +504,14 @@ export const getAssessmentResults = handleAsync(
         performance: {
           strengths,
           weaknesses,
-          recommendations,
+          recommendations: weaknesses.map(
+            (w) => `Review concepts related to ${w}`
+          ),
         },
       };
 
       return res.status(200).json(results);
     } catch (error) {
-      // The handleAsync utility should catch this, but adding as a safeguard
       console.error("Error getting assessment results:", error);
       return res.status(500).json({ message: "Server error" });
     }

@@ -49,7 +49,7 @@ export const createCourse = async (
       !level ||
       !duration ||
       !price ||
-      !lessons
+      !modules
     ) {
       res.status(400).json({ message: "Missing required fields" });
       return;

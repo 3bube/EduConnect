@@ -51,8 +51,6 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
     staleTime: 60 * 60 * 1000, // 1 hour
   });
 
-  console.log();
-
   const { mutate: markLessonCompleteMutation } = useMutation<
     Course,
     Error,
@@ -74,9 +72,7 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
   }
 
   const currentModule = course?.modules?.[currentModuleIndex];
-  const currentLesson = course?.lessons?.[currentLessonIndex];
-
-  console.log(currentLesson);
+  const currentLesson = currentModule?.lessons?.[currentLessonIndex];
 
   // Calculate total lessons and completed lessons
   const totalLessons = course?.modules?.reduce(
@@ -276,7 +272,6 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
             >
               <TabsList>
                 <TabsTrigger value="content">Content</TabsTrigger>
-                {/* <TabsTrigger value="discussion">Discussion</TabsTrigger> */}
                 <TabsTrigger value="resources">Resources</TabsTrigger>
               </TabsList>
 
@@ -375,114 +370,6 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
                 )}
               </TabsContent>
 
-              <TabsContent value="discussion" className="mt-6">
-                <div className="space-y-6">
-                  <h3 className="text-lg font-medium">Discussion</h3>
-
-                  <div className="space-y-4">
-                    {course.discussions?.map((discussion) => (
-                      <div
-                        key={discussion.id}
-                        className="rounded-lg border p-4"
-                      >
-                        <div className="flex items-start space-x-3">
-                          <Avatar>
-                            <AvatarImage
-                              src={discussion.user.avatar}
-                              alt={discussion.user.name}
-                            />
-                            <AvatarFallback>
-                              {discussion.user.name.charAt(0)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between">
-                              <h4 className="font-medium">
-                                {discussion.user.name}
-                              </h4>
-                              <span className="text-xs text-muted-foreground">
-                                {formatDate(discussion.date)}
-                              </span>
-                            </div>
-                            <p className="mt-1">{discussion.content}</p>
-                            <div className="mt-2 flex items-center space-x-2">
-                              <Button variant="ghost" size="sm">
-                                <ThumbsUp className="mr-1 h-4 w-4" />
-                                Like
-                              </Button>
-                              <Button variant="ghost" size="sm">
-                                <MessageSquare className="mr-1 h-4 w-4" />
-                                Reply
-                              </Button>
-                            </div>
-
-                            {discussion.replies &&
-                              discussion.replies.length > 0 && (
-                                <div className="mt-4 space-y-4 pl-6">
-                                  {discussion.replies.map((reply) => (
-                                    <div
-                                      key={reply.id}
-                                      className="rounded-lg bg-muted p-3"
-                                    >
-                                      <div className="flex items-start space-x-3">
-                                        <Avatar>
-                                          <AvatarImage
-                                            src={reply.user.avatar}
-                                            alt={reply.user.name}
-                                          />
-                                          <AvatarFallback>
-                                            {reply.user.name.charAt(0)}
-                                          </AvatarFallback>
-                                        </Avatar>
-                                        <div className="flex-1">
-                                          <div className="flex items-center">
-                                            <h5 className="font-medium">
-                                              {reply.user.name}
-                                            </h5>
-                                            {reply.user.isInstructor && (
-                                              <Badge
-                                                className="ml-2"
-                                                variant="secondary"
-                                              >
-                                                Instructor
-                                              </Badge>
-                                            )}
-                                            <span className="ml-auto text-xs text-muted-foreground">
-                                              {formatDate(reply.date)}
-                                            </span>
-                                          </div>
-                                          <p className="mt-1">
-                                            {reply.content}
-                                          </p>
-                                          <div className="mt-2 flex items-center space-x-2">
-                                            <Button variant="ghost" size="sm">
-                                              <ThumbsUp className="mr-1 h-4 w-4" />
-                                              Like
-                                            </Button>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="rounded-lg border p-4">
-                    <h4 className="mb-2 font-medium">Add a comment</h4>
-                    <textarea
-                      className="mb-2 h-24 w-full rounded-md border p-2"
-                      placeholder="Write your comment here..."
-                    ></textarea>
-                    <Button>Post Comment</Button>
-                  </div>
-                </div>
-              </TabsContent>
-
               <TabsContent value="resources" className="mt-6">
                 <div className="space-y-6">
                   <h3 className="text-lg font-medium">Lesson Resources</h3>
@@ -539,8 +426,9 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
               <Button
                 onClick={handleNextLesson}
                 disabled={
-                  currentModuleIndex === course.modules?.length - 1 &&
-                  currentLessonIndex === currentModule.lessons?.length - 1
+                  currentModuleIndex === course?.modules?.length - 1 &&
+                  currentLessonIndex ===
+                    course?.modules?.[currentModuleIndex]?.lessons?.length - 1
                 }
               >
                 Next Lesson

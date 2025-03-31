@@ -59,16 +59,16 @@ export function CourseDetails({ courseId }: CourseDetailsProps) {
     },
   });
 
-
   // use effect to get the user enrolled courses
   useEffect(() => {
     if (user) {
       const enrolledCourses = user.enrolledCourses || [];
-      const isEnrolled = enrolledCourses.some((courseId) => courseId === courseId);
+      const isEnrolled = enrolledCourses.some(
+        (courseId) => courseId === courseId
+      );
       setIsEnrolled(isEnrolled);
     }
   }, [user, courseId]);
-
 
   if (isLoading) {
     return <div className="text-center py-8">Loading course details...</div>;
@@ -83,9 +83,19 @@ export function CourseDetails({ courseId }: CourseDetailsProps) {
   }
 
   // Calculate total lessons and completed lessons
-  const totalLessons = course.lessons?.length || 0;
+  const totalLessons =
+    course.modules?.reduce(
+      (total, module) => total + (module.lessons?.length || 0),
+      0
+    ) || 0;
+
   const completedLessons =
-    course.lessons?.filter((lesson) => lesson.completed)?.length || 0;
+    course.modules?.reduce(
+      (total, module) =>
+        total +
+        (module.lessons?.filter((lesson) => lesson.completed)?.length || 0),
+      0
+    ) || 0;
 
   const handleEnroll = async () => {
     try {

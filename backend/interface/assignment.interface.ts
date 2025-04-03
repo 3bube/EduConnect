@@ -8,6 +8,11 @@ export interface IAssignment extends Document {
   courseId: string;
   description: string;
   dueDate: string;
+  questions?: {
+    question: string;
+    options?: string[];
+    answer?: string;
+  }[];
   status: "not_started" | "in_progress" | "completed" | "late";
   priority: "high" | "medium" | "low";
   type: "quiz" | "essay" | "report" | "project";

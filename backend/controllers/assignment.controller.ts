@@ -1,10 +1,10 @@
 import { Response, NextFunction } from "express";
-import { AuthRequest } from "../middleware/auth.middleware";
+import { ExtendedRequest } from "../middleware/auth.middleware";
 import Assignment from "../models/assignment.model";
 import { handleAsync } from "../utils/handler";
 
 export const GetAssignment = handleAsync(
-  async (req: AuthRequest, res: Response, next: NextFunction) => {
+  async (req: ExtendedRequest, res: Response, next: NextFunction) => {
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -20,7 +20,7 @@ export const GetAssignment = handleAsync(
 );
 
 export const GetAssignmentById = handleAsync(
-  async (req: AuthRequest, res: Response, next: NextFunction) => {
+  async (req: ExtendedRequest, res: Response, next: NextFunction) => {
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -38,7 +38,7 @@ export const GetAssignmentById = handleAsync(
 
 // Submit assignment
 export const SubmitAssignment = handleAsync(
-  async (req: AuthRequest, res: Response, next: NextFunction) => {
+  async (req: ExtendedRequest, res: Response, next: NextFunction) => {
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -60,7 +60,7 @@ export const SubmitAssignment = handleAsync(
 
 // get assignment submission
 export const GetSubmission = handleAsync(
-  async (req: AuthRequest, res: Response, next: NextFunction) => {
+  async (req: ExtendedRequest, res: Response, next: NextFunction) => {
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }

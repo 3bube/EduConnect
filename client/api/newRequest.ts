@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const newRequest = axios.create({
-  baseURL: "http://localhost:5000/api",
+  baseURL: "https://edu-connect-backend-taupe.vercel.app/api",
   headers: {
     "Content-Type": "application/json",
   },

@@ -1,9 +1,6 @@
 "use client";
 
-import type React from "react";
-
-import { useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -20,15 +17,21 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FaGoogle, FaFacebook } from "react-icons/fa";
 
-export function LoginForm() {
+export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [registered, setRegistered] = useState(false);
+  const [reset, setReset] = useState(false);
   const { login, isLoading } = useAuth();
-  const searchParams = useSearchParams();
 
-  const registered = searchParams?.get("registered");
-  const reset = searchParams?.get("reset");
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      setRegistered(params.get("registered") === "true");
+      setReset(params.get("reset") === "true");
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

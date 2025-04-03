@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useState, Suspense, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Course } from "@/api/course";
 import { getCourseById } from "@/api/course";
@@ -22,9 +22,14 @@ import { X } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 export default function EditCoursePage() {
-  const searchParams = useSearchParams();
   const router = useRouter();
-  const courseId = searchParams.get("courseId");
+  const [courseId, setCourseId] = useState<string | null>(null);
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      setCourseId(params.get("courseId"));
+    }
+  }, []);
 
   const { user } = useAuth();
 

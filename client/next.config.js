@@ -29,8 +29,7 @@ const nextConfig = {
     ],
   },
   typescript: {
-    // This will ignore all TypeScript errors during build
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: true, // Disable type checking during build
   },
 };
 

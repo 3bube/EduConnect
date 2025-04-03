@@ -52,6 +52,7 @@ export function RegisterForm() {
       await register(formData);
     } catch (err) {
       setError("Registration failed. Please try again.");
+      console.error(err);
     }
   };
 

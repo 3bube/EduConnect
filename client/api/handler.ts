@@ -6,7 +6,6 @@ export const requestHandler = async <T>(
 
     return data;
   } catch (error) {
-    console.error("API request failed:", error);
     if (error instanceof Error) {
       return error;
     }

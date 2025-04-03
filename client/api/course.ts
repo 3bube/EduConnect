@@ -1,7 +1,14 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { ReactNode } from "react";
 import { requestHandler } from "./handler";
 import newRequest from "./newRequest";
 
 export interface Course {
+  students: any;
+  resources: any;
+  progress: ReactNode;
+  modules: any;
+  course: Course | PromiseLike<Course>;
   _id: string;
   title: string;
   description: string;

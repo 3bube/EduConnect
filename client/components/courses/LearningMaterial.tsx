@@ -1,6 +1,15 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
-import { useState } from "react";
+import {
+  JSXElementConstructor,
+  Key,
+  ReactElement,
+  ReactNode,
+  ReactPortal,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { getCourseById, markLessonComplete } from "@/api/course";
@@ -75,16 +84,19 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
   const currentLesson = currentModule?.lessons?.[currentLessonIndex];
 
   // Calculate total lessons and completed lessons
-  const totalLessons = course?.modules?.reduce(
-    (total, module) => total + (module.lessons?.length || 0),
-    0
-  );
+  const totalLessons: number =
+    course?.modules?.reduce(
+      (total: number, module: { lessons: string | any[] }) =>
+        total + (module.lessons?.length || 0),
+      0
+    ) || 0;
 
-  const completedLessons = course?.modules?.reduce(
-    (total, module) =>
-      total + module.lessons?.filter((lesson) => lesson.completed).length,
-    0
-  );
+  const completedLessons: number =
+    course?.modules?.reduce(
+      (total: number, module: { lessons: Array<{ completed?: boolean }> }) =>
+        total + module.lessons?.filter((lesson) => lesson.completed).length,
+      0
+    ) || 0;
 
   const handleLessonSelect = (moduleIndex: number, lessonIndex: number) => {
     setCurrentModuleIndex(moduleIndex);
@@ -201,54 +213,90 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
                 defaultValue={[currentModule?.id]}
                 className="w-full"
               >
-                {course.modules?.map((module, moduleIndex) => (
-                  <AccordionItem key={module.id} value={module.id}>
-                    <AccordionTrigger className="hover:no-underline">
-                      <div className="text-left">
-                        <h4 className="font-medium">{module.title}</h4>
-                        <p className="text-xs text-muted-foreground">
-                          {module.lessons.length} lessons
-                        </p>
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      <ul className="space-y-1 pt-1">
-                        {module.lessons.map((lesson, lessonIndex) => (
-                          <li key={lesson.id}>
-                            <Button
-                              variant="ghost"
-                              className={`w-full justify-start ${
-                                moduleIndex === currentModuleIndex &&
-                                lessonIndex === currentLessonIndex
-                                  ? "bg-muted"
-                                  : ""
-                              }`}
-                              onClick={() =>
-                                handleLessonSelect(moduleIndex, lessonIndex)
-                              }
-                            >
-                              <div className="flex w-full items-center">
-                                {lesson.completed ? (
-                                  <CheckCircle2 className="mr-2 h-4 w-4 text-green-500" />
-                                ) : lesson.type.toLowerCase() === "video" ? (
-                                  <Play className="mr-2 h-4 w-4" />
-                                ) : (
-                                  <FileText className="mr-2 h-4 w-4" />
-                                )}
-                                <span className="text-left">
-                                  {lesson.title}
-                                </span>
-                                <span className="ml-auto text-xs text-muted-foreground">
-                                  {lesson.duration}
-                                </span>
-                              </div>
-                            </Button>
-                          </li>
-                        ))}
-                      </ul>
-                    </AccordionContent>
-                  </AccordionItem>
-                ))}
+                {course.modules?.map(
+                  (
+                    module: {
+                      _id: string;
+                      id: Key | null | undefined;
+                      title:
+                        | string
+                        | number
+                        | bigint
+                        | boolean
+                        | ReactElement<
+                            unknown,
+                            string | JSXElementConstructor<any>
+                          >
+                        | Iterable<ReactNode>
+                        | ReactPortal
+                        | Promise<
+                            | string
+                            | number
+                            | bigint
+                            | boolean
+                            | ReactPortal
+                            | ReactElement<
+                                unknown,
+                                string | JSXElementConstructor<any>
+                              >
+                            | Iterable<ReactNode>
+                            | null
+                            | undefined
+                          >
+                        | null
+                        | undefined;
+                      lessons: any[];
+                    },
+                    moduleIndex: number
+                  ) => (
+                    <AccordionItem key={module.id} value={module._id}>
+                      <AccordionTrigger className="hover:no-underline">
+                        <div className="text-left">
+                          <h4 className="font-medium">{module.title}</h4>
+                          <p className="text-xs text-muted-foreground">
+                            {module.lessons.length} lessons
+                          </p>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <ul className="space-y-1 pt-1">
+                          {module.lessons.map((lesson, lessonIndex) => (
+                            <li key={lesson.id}>
+                              <Button
+                                variant="ghost"
+                                className={`w-full justify-start ${
+                                  moduleIndex === currentModuleIndex &&
+                                  lessonIndex === currentLessonIndex
+                                    ? "bg-muted"
+                                    : ""
+                                }`}
+                                onClick={() =>
+                                  handleLessonSelect(moduleIndex, lessonIndex)
+                                }
+                              >
+                                <div className="flex w-full items-center">
+                                  {lesson.completed ? (
+                                    <CheckCircle2 className="mr-2 h-4 w-4 text-green-500" />
+                                  ) : lesson.type.toLowerCase() === "video" ? (
+                                    <Play className="mr-2 h-4 w-4" />
+                                  ) : (
+                                    <FileText className="mr-2 h-4 w-4" />
+                                  )}
+                                  <span className="text-left">
+                                    {lesson.title}
+                                  </span>
+                                  <span className="ml-auto text-xs text-muted-foreground">
+                                    {lesson.duration}
+                                  </span>
+                                </div>
+                              </Button>
+                            </li>
+                          ))}
+                        </ul>
+                      </AccordionContent>
+                    </AccordionItem>
+                  )
+                )}
               </Accordion>
             </div>
           </aside>
@@ -322,7 +370,41 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
 
                       <div className="space-y-8">
                         {currentLesson.content.problems.map(
-                          (problem, index) => (
+                          (
+                            problem: {
+                              _id: any;
+                              id: Key | null | undefined;
+                              question:
+                                | string
+                                | number
+                                | bigint
+                                | boolean
+                                | ReactElement<
+                                    unknown,
+                                    string | JSXElementConstructor<any>
+                                  >
+                                | Iterable<ReactNode>
+                                | ReactPortal
+                                | Promise<
+                                    | string
+                                    | number
+                                    | bigint
+                                    | boolean
+                                    | ReactPortal
+                                    | ReactElement<
+                                        unknown,
+                                        string | JSXElementConstructor<any>
+                                      >
+                                    | Iterable<ReactNode>
+                                    | null
+                                    | undefined
+                                  >
+                                | null
+                                | undefined;
+                              options: any[];
+                            },
+                            index: number
+                          ) => (
                             <div
                               key={problem.id}
                               className="rounded-lg border p-4"
@@ -338,8 +420,8 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
                                   >
                                     <input
                                       type="radio"
-                                      id={`${problem.id}-${option}`}
-                                      name={problem.id}
+                                      id={`${problem._id}-${option}`}
+                                      name={problem._id}
                                       className="h-4 w-4 border-gray-300"
                                     />
                                     <label
@@ -375,28 +457,87 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
                   <h3 className="text-lg font-medium">Lesson Resources</h3>
 
                   <ul className="space-y-2">
-                    {course.resources?.map((resource) => (
-                      <li key={resource.id}>
-                        <Button
-                          variant="outline"
-                          className="w-full justify-between"
-                        >
-                          <div className="flex items-center">
-                            <FileText className="mr-2 h-4 w-4" />
-                            <span>{resource.title}</span>
-                            <Badge variant="outline" className="ml-2">
-                              {resource.type.toUpperCase()}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center">
-                            <span className="mr-2 text-sm text-muted-foreground">
-                              {resource.size}
-                            </span>
-                            <Download className="h-4 w-4" />
-                          </div>
-                        </Button>
-                      </li>
-                    ))}
+                    {course.resources?.map(
+                      (resource: {
+                        id: Key | null | undefined;
+                        title:
+                          | string
+                          | number
+                          | bigint
+                          | boolean
+                          | ReactElement<
+                              unknown,
+                              string | JSXElementConstructor<any>
+                            >
+                          | Iterable<ReactNode>
+                          | ReactPortal
+                          | Promise<
+                              | string
+                              | number
+                              | bigint
+                              | boolean
+                              | ReactPortal
+                              | ReactElement<
+                                  unknown,
+                                  string | JSXElementConstructor<any>
+                                >
+                              | Iterable<ReactNode>
+                              | null
+                              | undefined
+                            >
+                          | null
+                          | undefined;
+                        type: string;
+                        size:
+                          | string
+                          | number
+                          | bigint
+                          | boolean
+                          | ReactElement<
+                              unknown,
+                              string | JSXElementConstructor<any>
+                            >
+                          | Iterable<ReactNode>
+                          | ReactPortal
+                          | Promise<
+                              | string
+                              | number
+                              | bigint
+                              | boolean
+                              | ReactPortal
+                              | ReactElement<
+                                  unknown,
+                                  string | JSXElementConstructor<any>
+                                >
+                              | Iterable<ReactNode>
+                              | null
+                              | undefined
+                            >
+                          | null
+                          | undefined;
+                      }) => (
+                        <li key={resource.id}>
+                          <Button
+                            variant="outline"
+                            className="w-full justify-between"
+                          >
+                            <div className="flex items-center">
+                              <FileText className="mr-2 h-4 w-4" />
+                              <span>{resource.title}</span>
+                              <Badge variant="outline" className="ml-2">
+                                {resource.type.toUpperCase()}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center">
+                              <span className="mr-2 text-sm text-muted-foreground">
+                                {resource.size}
+                              </span>
+                              <Download className="h-4 w-4" />
+                            </div>
+                          </Button>
+                        </li>
+                      )
+                    )}
                   </ul>
                 </div>
               </TabsContent>

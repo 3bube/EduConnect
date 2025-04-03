@@ -33,7 +33,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { getAssessment, getAssessmentForUser } from "@/api/assessment";
+import { getAssessmentForUser } from "@/api/assessment";
 import { useAuth } from "@/context/AuthContext";
 
 // Define assessment interface

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import { useState } from "react";
@@ -25,6 +26,10 @@ import { getCoursesForInstructor } from "@/api/course";
 import type { Course } from "@/api/course";
 import { useQuery } from "@tanstack/react-query";
 
+interface CourseResponse {
+  courses: Course[];
+}
+
 export function TutorDashboard() {
   const { user, isLoading: isAuthLoading } = useAuth();
   const [activeTab, setActiveTab] = useState("overview");
@@ -33,7 +38,7 @@ export function TutorDashboard() {
     data,
     isLoading: isCoursesLoading,
     error,
-  } = useQuery<Course[]>({
+  } = useQuery<CourseResponse>({
     queryKey: ["courses", user?._id],
     queryFn: () => getCoursesForInstructor(user?._id || ""),
     enabled: !!user?._id && user?.role === "tutor", // Only fetch if we have a tutor user

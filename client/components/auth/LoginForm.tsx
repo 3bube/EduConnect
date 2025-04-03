@@ -38,6 +38,7 @@ export function LoginForm() {
       await login(email, password);
     } catch (err) {
       setError("Invalid email or password. Please try again.");
+      console.error(err);
     }
   };
 

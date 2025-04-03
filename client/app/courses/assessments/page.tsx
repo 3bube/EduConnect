@@ -1,5 +1,6 @@
 "use client";
 
+import React, { Suspense } from "react";
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -48,7 +49,8 @@ interface Assessment {
   }[];
 }
 
-export default function AssessmentsPage() {
+// Create a client component that uses search params
+function AssessmentContent() {
   const searchParams = useSearchParams();
   const courseId = searchParams.get("courseId");
   const { user } = useAuth();
@@ -89,7 +91,8 @@ export default function AssessmentsPage() {
   if (error) {
     return (
       <div className="container p-8">
-        Error: {error instanceof Error ? error.message : "Failed to load course"}
+        Error:{" "}
+        {error instanceof Error ? error.message : "Failed to load course"}
       </div>
     );
   }
@@ -139,7 +142,10 @@ export default function AssessmentsPage() {
                   id="title"
                   value={newAssessment.title}
                   onChange={(e) =>
-                    setNewAssessment({ ...newAssessment, title: e.target.value })
+                    setNewAssessment({
+                      ...newAssessment,
+                      title: e.target.value,
+                    })
                   }
                 />
               </div>
@@ -285,5 +291,21 @@ export default function AssessmentsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// Create a loading fallback component
+function AssessmentLoading() {
+  return <div>Loading assessments...</div>;
+}
+
+// Main page component with Suspense boundary
+export default function AssessmentsPage() {
+  return (
+    <main>
+      <Suspense fallback={<AssessmentLoading />}>
+        <AssessmentContent />
+      </Suspense>
+    </main>
   );
 }

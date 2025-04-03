@@ -9,14 +9,7 @@ import {
   register as registerApi,
   RegisterData,
 } from "@/api";
-
-type User = {
-  id: string;
-  name: string;
-  email: string;
-  role: "student" | "tutor" | "parent" | "admin";
-  avatar?: string;
-};
+import { User } from "@/interface/user.interface";
 
 type AuthContextType = {
   user: User | null;

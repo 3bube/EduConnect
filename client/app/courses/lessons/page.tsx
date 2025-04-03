@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Course } from "@/api/course";
@@ -21,8 +21,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Pencil, Trash } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useState } from "react";
 
-export default function LessonsPage() {
+// Create a client component that uses search params
+function LessonsContent() {
   const searchParams = useSearchParams();
   const courseId = searchParams.get("courseId");
   const { user } = useAuth();
@@ -60,7 +62,8 @@ export default function LessonsPage() {
   if (error) {
     return (
       <div className="container p-8">
-        Error: {error instanceof Error ? error.message : "Failed to load course"}
+        Error:{" "}
+        {error instanceof Error ? error.message : "Failed to load course"}
       </div>
     );
   }
@@ -99,8 +102,8 @@ export default function LessonsPage() {
             <DialogHeader>
               <DialogTitle>Add New Lesson</DialogTitle>
               <DialogDescription>
-                Create a new lesson for your course. Add content, duration, and set
-                the order.
+                Create a new lesson for your course. Add content, duration, and
+                set the order.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
@@ -153,7 +156,10 @@ export default function LessonsPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsAddingLesson(false)}>
+              <Button
+                variant="outline"
+                onClick={() => setIsAddingLesson(false)}
+              >
                 Cancel
               </Button>
               <Button onClick={handleAddLesson}>Add Lesson</Button>
@@ -198,5 +204,21 @@ export default function LessonsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// Create a loading fallback component
+function LessonsLoading() {
+  return <div>Loading lessons...</div>;
+}
+
+// Main page component with Suspense boundary
+export default function LessonsPage() {
+  return (
+    <main>
+      <Suspense fallback={<LessonsLoading />}>
+        <LessonsContent />
+      </Suspense>
+    </main>
   );
 }

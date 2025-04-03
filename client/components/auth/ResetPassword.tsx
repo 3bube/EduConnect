@@ -31,6 +31,7 @@ export function ResetPasswordForm() {
       await resetPassword(email);
     } catch (err) {
       setError("Failed to send reset link. Please try again.");
+      console.error(err);
     }
   };
 
@@ -45,7 +46,7 @@ export function ResetPasswordForm() {
       <CardHeader>
         <CardTitle>Reset Password</CardTitle>
         <CardDescription>
-          We'll send you a link to reset your password
+          We&apos;ll send you a link to reset your password
         </CardDescription>
       </CardHeader>
 

@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const newRequest = axios.create({
-  baseURL: "https://edu-connect-backend-taupe.vercel.app/api",
+  baseURL: "https://educonnect-unzf.onrender.com/api",
   headers: {
     "Content-Type": "application/json",
   },

@@ -45,7 +45,12 @@ app.use("/api/certificates", certificateRoute);
 app.use("/api/student", studentRoute);
 
 // Start Server
-app.listen(PORT, async () => {
-  console.log(`🚀 Server is running on http://localhost:${PORT}`);
-  await connectDB();
-});
+try {
+  app.listen(PORT, async () => {
+    console.log(`🚀 Server is running on http://localhost:${PORT}`);
+    await connectDB();
+  });
+} catch (error) {
+  console.error("❌ Server failed to start:", error);
+  process.exit(1);
+}

@@ -7,6 +7,7 @@ import assessmentsRoute from "../routes/assessments.route";
 import certificateRoute from "../routes/certificates.route";
 import studentRoute from "../routes/student.routes";
 import dotenv from "dotenv";
+import mongoose from "mongoose";
 
 dotenv.config();
 
@@ -27,6 +28,14 @@ app.use(
 // Default Route
 app.get("/", (req: Request, res: Response) => {
   res.send("Hello, TypeScript Server!");
+});
+
+// make a route to check mongodb connection
+app.get("/api/db", (req: Request, res: Response) => {
+  res.json({
+    status: mongoose.connection.readyState,
+    connected: mongoose.connection.readyState === 1,
+  });
 });
 
 app.use("/api/auth", authRoute);

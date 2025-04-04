@@ -17,6 +17,8 @@ const handler_1 = require("../utils/handler");
 const assessment_models_1 = __importDefault(require("../models/assessment.models"));
 const user_model_1 = __importDefault(require("../models/user.model"));
 const question_models_1 = __importDefault(require("../models/question.models"));
+const course_model_1 = __importDefault(require("../models/course.model"));
+const certificate_model_1 = __importDefault(require("../models/certificate.model"));
 const mongoose_1 = __importDefault(require("mongoose"));
 exports.GetAssessment = (0, handler_1.handleAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     if (!req.userId) {
@@ -79,7 +81,28 @@ exports.StartAssessment = (0, handler_1.handleAsync)((req, res, next) => __await
     if (!assessment) {
         return res.status(404).json({ message: "Assessment not found" });
     }
-    res.status(200).json({ assessment });
+    // Check if user has already submitted this assessment
+    const hasSubmitted = assessment.submissions.some((submission) => submission.userId.toString() === req.userId);
+    if (hasSubmitted) {
+        return res.status(400).json({
+            message: "You have already completed this assessment",
+            status: "completed",
+        });
+    }
+    // Update the assessment's status when user starts it
+    const userStatusUpdate = {
+        assessmentId: assessment._id,
+        userId: req.userId,
+        status: "in_progress",
+        startedAt: new Date(),
+    };
+    // You might want to store this in a separate collection for user progress
+    // For simplicity we'll just return the updated status
+    res.status(200).json({
+        assessment,
+        userStatus: "in_progress",
+        message: "Assessment started successfully",
+    });
 }));
 // Submit assessment
 exports.SubmitAssessment = (0, handler_1.handleAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
@@ -91,6 +114,7 @@ exports.SubmitAssessment = (0, handler_1.handleAsync)((req, res, next) => __awai
     // Find assessment with populated questions
     const assessment = yield assessment_models_1.default.findById(assessmentId)
         .populate("questions")
+        .populate("course")
         .exec();
     if (!assessment) {
         return res.status(404).json({ message: "Assessment not found" });
@@ -104,7 +128,6 @@ exports.SubmitAssessment = (0, handler_1.handleAsync)((req, res, next) => __awai
         }));
     // Grade each answer
     const gradedAnswers = assessment.questions.map((question) => {
-        var _a;
         const userAnswer = answersArray.find((a) => a.questionId === question._id.toString());
         if (!userAnswer) {
             return {
@@ -115,29 +138,69 @@ exports.SubmitAssessment = (0, handler_1.handleAsync)((req, res, next) => __awai
             };
         }
         let isCorrect = false;
-        console.log("here1");
+        console.log("Processing answer for question type:", question.type);
         switch (question.type) {
             case "multiple-select":
-                // Handle case where answers might be in object format
-                const userSelections = Array.isArray(userAnswer.selectedAnswers)
-                    ? userAnswer.selectedAnswers
-                    : Object.values(userAnswer.selectedAnswers || {});
-                isCorrect = arraysEqual(((_a = question.correctAnswers) === null || _a === void 0 ? void 0 : _a.sort()) || [], userSelections.sort());
+                // Ensure selectedAnswers is always an array of strings
+                let userSelections = [];
+                // Handle different formats that might come from the client
+                if (Array.isArray(userAnswer.selectedAnswers)) {
+                    userSelections = userAnswer.selectedAnswers
+                        .map((item) => 
+                    // Flatten any nested arrays and convert to string
+                    Array.isArray(item) ? item.map(String) : String(item))
+                        .flat();
+                }
+                else if (userAnswer.selectedAnswers &&
+                    typeof userAnswer.selectedAnswers === "object") {
+                    // Handle object format like {0: "value1", 1: "value2"}
+                    userSelections = Object.values(userAnswer.selectedAnswers).map(String);
+                }
+                else if (Array.isArray(userAnswer.selectedAnswer)) {
+                    // Sometimes multiple selections come in selectedAnswer field
+                    userSelections = userAnswer.selectedAnswer.map(String);
+                }
+                console.log("User selections:", userSelections);
+                console.log("Correct answers:", question.correctAnswers);
+                // Compare arrays after normalization
+                isCorrect = arraysEqual((question.correctAnswers || []).map(String).sort(), userSelections.sort());
                 break;
             case "multiple-choice":
             case "true-false":
-                isCorrect = question.correctAnswer === userAnswer.selectedAnswer;
+                // Handle single selection
+                const normalizedAnswer = Array.isArray(userAnswer.selectedAnswer)
+                    ? String(userAnswer.selectedAnswer[0])
+                    : String(userAnswer.selectedAnswer || "");
+                isCorrect =
+                    String(question.correctAnswer || "") === normalizedAnswer;
                 break;
             default:
                 isCorrect = false;
         }
+        // Normalize the answer format for storage
+        let finalSelectedAnswer = null;
+        let finalSelectedAnswers = [];
+        if (question.type === "multiple-select") {
+            // For multiple-select, store an array in selectedAnswers, null in selectedAnswer
+            finalSelectedAnswers = userAnswer.selectedAnswers
+                ? Array.isArray(userAnswer.selectedAnswers)
+                    ? userAnswer.selectedAnswers.flat().map(String)
+                    : Object.values(userAnswer.selectedAnswers).map(String)
+                : Array.isArray(userAnswer.selectedAnswer)
+                    ? userAnswer.selectedAnswer.map(String)
+                    : [];
+        }
+        else {
+            // For single-select, store a string in selectedAnswer, empty array in selectedAnswers
+            finalSelectedAnswer = Array.isArray(userAnswer.selectedAnswer)
+                ? String(userAnswer.selectedAnswer[0] || "")
+                : String(userAnswer.selectedAnswer || "");
+        }
         return {
             questionId: question._id,
             isCorrect,
-            selectedAnswer: userAnswer.selectedAnswer,
-            selectedAnswers: Array.isArray(userAnswer.selectedAnswers)
-                ? userAnswer.selectedAnswers
-                : [userAnswer.selectedAnswer].filter(Boolean),
+            selectedAnswer: finalSelectedAnswer,
+            selectedAnswers: finalSelectedAnswers,
         };
     });
     // Calculate score
@@ -157,7 +220,67 @@ exports.SubmitAssessment = (0, handler_1.handleAsync)((req, res, next) => __awai
     assessment.submissions.push(submission);
     assessment.status = "completed";
     yield assessment.save();
-    console.log("here2");
+    console.log("Assessment saved with status:", assessment.status);
+    // If the user passed the assessment, check if they should receive a certificate
+    let certificate = null;
+    if (isPassed) {
+        try {
+            // Get the course to extract skills for the certificate
+            const courseObj = yield course_model_1.default.findById(assessment.course).lean();
+            if (courseObj) {
+                // Check if a certificate already exists
+                const existingCertificate = yield certificate_model_1.default.findOne({
+                    userId: req.userId,
+                    courseId: courseObj._id,
+                    assessmentId: assessment._id,
+                });
+                if (!existingCertificate) {
+                    // Determine grade based on score
+                    let grade = "C";
+                    if (score >= 90)
+                        grade = "A";
+                    else if (score >= 80)
+                        grade = "B";
+                    else if (score >= 70)
+                        grade = "C";
+                    else if (score >= 60)
+                        grade = "D";
+                    else
+                        grade = "F";
+                    // Create new certificate
+                    certificate = new certificate_model_1.default({
+                        userId: req.userId,
+                        courseId: courseObj._id,
+                        assessmentId: assessment._id,
+                        title: `${courseObj.title} Certificate`,
+                        issueDate: new Date(),
+                        // Set expiry to 3 years from now
+                        expiryDate: new Date(Date.now() + 3 * 365 * 24 * 60 * 60 * 1000),
+                        grade,
+                        score,
+                        // Extract skills from course or set default
+                        skills: courseObj.tags || [],
+                        issuer: "EduConnect",
+                        status: "issued",
+                    });
+                    yield certificate.save();
+                    console.log("Certificate created:", certificate._id);
+                    // Update user's certificates array if needed
+                    yield user_model_1.default.findByIdAndUpdate(req.userId, {
+                        $addToSet: { certificates: certificate._id },
+                    });
+                }
+                else {
+                    console.log("Certificate already exists for this assessment");
+                    certificate = existingCertificate;
+                }
+            }
+        }
+        catch (certError) {
+            console.error("Error creating certificate:", certError);
+            // Don't fail the assessment submission if certificate creation fails
+        }
+    }
     // Prepare response data
     const response = {
         message: "Assessment submitted successfully",
@@ -171,8 +294,17 @@ exports.SubmitAssessment = (0, handler_1.handleAsync)((req, res, next) => __awai
         passingScore: assessment.passingScore,
         timeSpent,
         submittedAt: submission.submittedAt,
+        certificate: certificate
+            ? {
+                id: certificate._id,
+                title: certificate.title,
+                credentialId: certificate.credentialId,
+                issueDate: certificate.issueDate,
+                grade: certificate.grade,
+            }
+            : null,
     };
-    console.log("response", response);
+    console.log("Response prepared:", response.message);
     res.status(200).json(response);
 }));
 // Get assessment results
@@ -194,7 +326,6 @@ exports.CreateAssessment = (0, handler_1.handleAsync)((req, res, next) => __awai
     }
     try {
         const { title, description, type, questions: questionData, timeLimit = 60, dueDate, status, passingScore = 70, category = "General", courseId, } = req.body;
-        console.log("course", courseId);
         // First, create all the questions
         const questionIds = [];
         for (const question of questionData) {
@@ -254,19 +385,31 @@ exports.getAssessmentForUser = (0, handler_1.handleAsync)((req, res, next) => __
     // Get enrolled courses ids
     const enrolledCourses = user.enrolledCourses;
     // Find assessments for enrolled courses
-    const assessment = yield assessment_models_1.default.find({
+    const assessments = yield assessment_models_1.default.find({
         course: { $in: enrolledCourses },
     }).populate("course");
     // Return empty array instead of 404 if no assessments found
-    if (!assessment || assessment.length === 0) {
+    if (!assessments || assessments.length === 0) {
         return res.status(200).json({ assessment: [] });
     }
     // Transform the data to match the expected format in the frontend
-    const formattedAssessments = assessment.map((item) => {
-        var _a;
-        return (Object.assign(Object.assign({}, item.toObject()), { course: {
-                _id: ((_a = item.course) === null || _a === void 0 ? void 0 : _a._id) || "",
-            } }));
+    const formattedAssessments = assessments.map((item) => {
+        var _a, _b, _c;
+        const assessment = item.toObject();
+        // Check if user has submitted this assessment
+        const userSubmission = (_a = assessment.submissions) === null || _a === void 0 ? void 0 : _a.find((submission) => submission.userId.toString() === req.userId);
+        // Set status based on user's submission
+        if (userSubmission) {
+            assessment.status = "completed";
+            assessment.averageScore = userSubmission.score;
+        }
+        else {
+            assessment.status = "not_started";
+        }
+        return Object.assign(Object.assign({}, assessment), { course: {
+                _id: ((_b = item.course) === null || _b === void 0 ? void 0 : _b._id) || "",
+                title: ((_c = item.course) === null || _c === void 0 ? void 0 : _c.title) || "",
+            } });
     });
     res.status(200).json({ assessment: formattedAssessments });
 }));

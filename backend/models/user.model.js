@@ -47,13 +47,19 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importStar(require("mongoose"));
 const bcrypt_1 = __importDefault(require("bcrypt"));
+// Log the available roles
+const VALID_ROLES = ["student", "tutor", "both"];
+console.log("Valid roles:", VALID_ROLES);
 const UserSchema = new mongoose_1.Schema({
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     role: {
         type: String,
-        enum: ["student", "tutor", "parent"],
+        enum: {
+            values: VALID_ROLES,
+            message: "Role must be either 'student', 'tutor', or 'both'",
+        },
         default: "student",
     },
     enrolledCourses: [

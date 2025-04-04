@@ -28,15 +28,25 @@ const generateTokens = (userId) => {
 };
 // Register user
 exports.register = (0, handler_1.handleAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    console.log("Registration request received");
+    console.log("Request body:", req.body);
+    console.log("Role value:", req.body.role);
     const { name, email, password, role } = req.body;
     const existingUser = yield user_model_1.default.findOne({ email });
     if (existingUser) {
         return res.status(400).json({ message: "Email already in use" });
     }
-    yield user_model_1.default.create({ name, email, password, role });
-    return res.status(201).json({
-        message: "User registered successfully!",
-    });
+    try {
+        const user = yield user_model_1.default.create({ name, email, password, role });
+        console.log("Created user:", user);
+        return res.status(201).json({
+            message: "User registered successfully!",
+        });
+    }
+    catch (error) {
+        console.error("User creation error:", error);
+        throw error;
+    }
 }));
 // Sign in user
 exports.signIn = (0, handler_1.handleAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
@@ -45,6 +55,7 @@ exports.signIn = (0, handler_1.handleAsync)((req, res, next) => __awaiter(void 0
     if (!user) {
         return res.status(404).json({ message: "User not found" });
     }
+    console.log("hi");
     const isPasswordValid = yield user.comparePassword(password);
     if (!isPasswordValid) {
         return res.status(401).json({ message: "Invalid password" });

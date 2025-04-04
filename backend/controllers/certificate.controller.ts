@@ -90,7 +90,9 @@ export const generateCertificate = handleAsync(
         assessmentId: assessmentId,
         issuer: "EduConnect",
         grade: grade,
-        skills: assessment.course ? (assessment.course as any).skills || [] : [],
+        skills: assessment.course
+          ? (assessment.course as any).skills || []
+          : [],
       });
 
       await certificate.save();
@@ -111,7 +113,7 @@ export const generateCertificate = handleAsync(
   }
 );
 
-// Get all certificates for the logged-in user
+// Get all certificates for the logged in user
 export const getUserCertificates = handleAsync(
   async (req: ExtendedRequest, res: Response, next: NextFunction) => {
     if (!req.userId) {
@@ -120,19 +122,23 @@ export const getUserCertificates = handleAsync(
 
     try {
       const certificates = await Certificate.find({ userId: req.userId })
-        .populate("courseId", "title")
-        .populate("assessmentId", "title")
-        .sort({ issueDate: -1 });
+        .populate("courseId", "title image")
+        .populate("assessmentId", "title type")
+        .sort({ issueDate: -1 }) // Most recent first
+        .lean();
 
-      res.status(200).json({ certificates });
+      return res.status(200).json({ certificates });
     } catch (error) {
       console.error("Error fetching certificates:", error);
-      res.status(500).json({ message: "Server error" });
+      return res.status(500).json({
+        message: "Failed to fetch certificates",
+        error: (error as Error).message,
+      });
     }
   }
 );
 
-// Get a specific certificate by ID
+// Get certificate by ID
 export const getCertificateById = handleAsync(
   async (req: ExtendedRequest, res: Response, next: NextFunction) => {
     if (!req.userId) {
@@ -143,27 +149,91 @@ export const getCertificateById = handleAsync(
 
     try {
       const certificate = await Certificate.findById(id)
-        .populate("courseId", "title")
-        .populate("assessmentId", "title")
-        .populate("userId", "name email");
+        .populate("courseId", "title description image level")
+        .populate("assessmentId", "title type")
+        .populate("userId", "name email")
+        .lean();
 
       if (!certificate) {
         return res.status(404).json({ message: "Certificate not found" });
       }
 
-      // Check if certificate belongs to the user or user is admin
-      if (
-        certificate.userId.toString() !== req.userId 
-        // Only allow the user who owns the certificate to access it
-        // Admin check removed as userRole is not in ExtendedRequest
-      ) {
-        return res.status(403).json({ message: "Unauthorized access" });
+      // get user role from the user model
+      const user = await User.findById(req.userId).select("role").lean();
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
       }
 
-      res.status(200).json({ certificate });
+      // Check if the certificate belongs to the user or if user is an admin
+      if (
+        certificate.userId._id.toString() !== req.userId &&
+        user.role !== "student" &&
+        user.role !== "tutor"
+      ) {
+        return res
+          .status(403)
+          .json({ message: "Not authorized to view this certificate" });
+      }
+
+      return res.status(200).json({ certificate });
     } catch (error) {
       console.error("Error fetching certificate:", error);
-      res.status(500).json({ message: "Server error" });
+      return res.status(500).json({
+        message: "Failed to fetch certificate",
+        error: (error as Error).message,
+      });
+    }
+  }
+);
+
+// Verify certificate validity
+export const verifyCertificate = handleAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { credentialId } = req.params;
+
+    try {
+      // Add proper type casting for the populated fields
+      const certificate = await Certificate.findOne({ credentialId })
+        .populate<{ courseId: { title: string } }>("courseId", "title")
+        .populate<{ userId: { name: string } }>("userId", "name")
+        .lean();
+
+      if (!certificate) {
+        return res.status(404).json({
+          valid: false,
+          message: "Certificate not found",
+        });
+      }
+
+      const isExpired =
+        certificate.expiryDate && new Date() > new Date(certificate.expiryDate);
+      const isRevoked = certificate.status === "revoked";
+
+      return res.status(200).json({
+        valid: !isExpired && !isRevoked,
+        certificate: {
+          credentialId: certificate.credentialId,
+          title: certificate.title,
+          issueDate: certificate.issueDate,
+          expiryDate: certificate.expiryDate,
+          courseName: certificate.courseId.title,
+          userName: certificate.userId.name,
+          status: certificate.status,
+          grade: certificate.grade,
+        },
+        message: isExpired
+          ? "Certificate has expired"
+          : isRevoked
+            ? "Certificate has been revoked"
+            : "Certificate is valid",
+      });
+    } catch (error) {
+      console.error("Error verifying certificate:", error);
+      return res.status(500).json({
+        valid: false,
+        message: "Failed to verify certificate",
+        error: (error as Error).message,
+      });
     }
   }
 );

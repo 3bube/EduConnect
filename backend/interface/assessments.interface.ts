@@ -3,7 +3,7 @@ import { IQuestion } from "./question.interface";
 
 export interface IAssessmentAnswer {
   questionId: Types.ObjectId;
-  selectedAnswer?: string;
+  selectedAnswer?: string | null;
   selectedAnswers?: string[];
   isCorrect: boolean;
 }

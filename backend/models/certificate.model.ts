@@ -1,57 +1,46 @@
 import mongoose, { Schema } from "mongoose";
+import { ICertificate } from "../interface/certificate.interface";
 
-export interface ICertificate extends Document {
-  title: string;
-  issueDate: Date;
-  expiryDate: Date;
-  userId: Schema.Types.ObjectId;
-  courseId: Schema.Types.ObjectId;
-  assessmentId: Schema.Types.ObjectId;
-  issuer: string;
-  credentialID: string;
-  grade: string;
-  skills: string[];
-}
-
-const CertificateSchema = new Schema(
+const CertificateSchema: Schema = new Schema<ICertificate>(
   {
-    title: { type: String, required: true },
-    issueDate: { type: Date, default: Date.now },
-    expiryDate: { type: Date, required: true },
-    userId: { 
-      type: Schema.Types.ObjectId, 
-      ref: "User", 
-      required: true 
-    },
-    courseId: {
-      type: Schema.Types.ObjectId,
-      ref: "Course",
-      required: true
-    },
+    userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    courseId: { type: Schema.Types.ObjectId, ref: "Course", required: true },
     assessmentId: {
       type: Schema.Types.ObjectId,
       ref: "Assessment",
-      required: true
+      required: true,
     },
-    issuer: { type: String, default: "EduConnect" },
-    credentialID: { type: String, required: true },
+    title: { type: String, required: true },
+    issueDate: { type: Date, default: Date.now, required: true },
+    expiryDate: { type: Date },
+    credentialId: { type: String, required: true, unique: true },
     grade: { type: String, required: true },
-    skills: [{ type: String }]
+    score: { type: Number, required: true },
+    skills: { type: [String], default: [] },
+    issuer: { type: String, default: "EduConnect", required: true },
+    status: { type: String, enum: ["issued", "revoked"], default: "issued" },
   },
   { timestamps: true }
 );
 
-// Generate a unique credential ID
-CertificateSchema.pre("save", function(next) {
-  if (this.isNew) {
-    const prefix = this.title.substring(0, 3).toUpperCase();
-    const random = Math.floor(1000 + Math.random() * 9000);
-    const timestamp = Date.now().toString().slice(-4);
-    this.credentialID = `${prefix}-${random}-${timestamp}`;
+// Generate a unique credential ID before saving
+CertificateSchema.pre<ICertificate>("save", async function (next) {
+  if (!this.isNew) {
+    return next();
   }
+
+  // Format: EC-{courseId last 4 chars}-{userId last 4 chars}-{random 4 chars}
+  const courseIdStr = this.courseId.toString().slice(-4);
+  const userIdStr = this.userId.toString().slice(-4);
+  const randomStr = Math.random().toString(36).substring(2, 6).toUpperCase();
+
+  this.credentialId = `EC-${courseIdStr}-${userIdStr}-${randomStr}`;
   next();
 });
 
-const Certificate = mongoose.model<ICertificate>("Certificate", CertificateSchema);
+const Certificate = mongoose.model<ICertificate>(
+  "Certificate",
+  CertificateSchema
+);
 
 export default Certificate;

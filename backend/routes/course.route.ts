@@ -7,6 +7,7 @@ import {
   getLessonContent,
   markLessonComplete,
   getInstructorCourses,
+  getResource,
 } from "../controllers/courses.controller";
 import { authMiddleware } from "../middleware/auth.middleware";
 
@@ -54,6 +55,14 @@ router.post(
   authMiddleware,
   (req: Request, res: Response, next: NextFunction) =>
     markLessonComplete(req, res, next)
+);
+
+// Resource download route
+router.get(
+  "/:courseId/resources/:resourceId",
+  authMiddleware,
+  (req: Request, res: Response, next: NextFunction) =>
+    getResource(req, res, next)
 );
 
 export default router;

@@ -1,11 +1,13 @@
 import express, { Request, Response } from "express";
 import connectDB from "../config/db";
 import cors from "cors";
+import morgan from "morgan";
 import authRoute from "../routes/auth.route";
 import courseRoute from "../routes/course.route";
 import assessmentsRoute from "../routes/assessments.route";
 import certificateRoute from "../routes/certificates.route";
 import studentRoute from "../routes/student.routes";
+import studyMaterialRoute from "../routes/study-material.routes";
 import dotenv from "dotenv";
 import mongoose from "mongoose";
 
@@ -16,6 +18,7 @@ const PORT = process.env.PORT ?? 5000;
 
 // Middleware
 app.use(express.json());
+app.use(morgan("dev")); // Logging middleware
 // Update your CORS configuration
 app.use(
   cors({
@@ -43,6 +46,7 @@ app.use("/api/courses", courseRoute);
 app.use("/api/assessments", assessmentsRoute);
 app.use("/api/certificates", certificateRoute);
 app.use("/api/student", studentRoute);
+app.use("/api/study-materials", studyMaterialRoute);
 
 // Start Server
 try {

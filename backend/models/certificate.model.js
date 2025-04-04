@@ -32,41 +32,48 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importStar(require("mongoose"));
 const CertificateSchema = new mongoose_1.Schema({
-    title: { type: String, required: true },
-    issueDate: { type: Date, default: Date.now },
-    expiryDate: { type: Date, required: true },
-    userId: {
-        type: mongoose_1.Schema.Types.ObjectId,
-        ref: "User",
-        required: true
-    },
-    courseId: {
-        type: mongoose_1.Schema.Types.ObjectId,
-        ref: "Course",
-        required: true
-    },
+    userId: { type: mongoose_1.Schema.Types.ObjectId, ref: "User", required: true },
+    courseId: { type: mongoose_1.Schema.Types.ObjectId, ref: "Course", required: true },
     assessmentId: {
         type: mongoose_1.Schema.Types.ObjectId,
         ref: "Assessment",
-        required: true
+        required: true,
     },
-    issuer: { type: String, default: "EduConnect" },
-    credentialID: { type: String, required: true },
+    title: { type: String, required: true },
+    issueDate: { type: Date, default: Date.now, required: true },
+    expiryDate: { type: Date },
+    credentialId: { type: String, required: true, unique: true },
     grade: { type: String, required: true },
-    skills: [{ type: String }]
+    score: { type: Number, required: true },
+    skills: { type: [String], default: [] },
+    issuer: { type: String, default: "EduConnect", required: true },
+    status: { type: String, enum: ["issued", "revoked"], default: "issued" },
 }, { timestamps: true });
-// Generate a unique credential ID
+// Generate a unique credential ID before saving
 CertificateSchema.pre("save", function (next) {
-    if (this.isNew) {
-        const prefix = this.title.substring(0, 3).toUpperCase();
-        const random = Math.floor(1000 + Math.random() * 9000);
-        const timestamp = Date.now().toString().slice(-4);
-        this.credentialID = `${prefix}-${random}-${timestamp}`;
-    }
-    next();
+    return __awaiter(this, void 0, void 0, function* () {
+        if (!this.isNew) {
+            return next();
+        }
+        // Format: EC-{courseId last 4 chars}-{userId last 4 chars}-{random 4 chars}
+        const courseIdStr = this.courseId.toString().slice(-4);
+        const userIdStr = this.userId.toString().slice(-4);
+        const randomStr = Math.random().toString(36).substring(2, 6).toUpperCase();
+        this.credentialId = `EC-${courseIdStr}-${userIdStr}-${randomStr}`;
+        next();
+    });
 });
 const Certificate = mongoose_1.default.model("Certificate", CertificateSchema);
 exports.default = Certificate;

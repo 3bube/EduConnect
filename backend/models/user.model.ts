@@ -2,6 +2,10 @@ import mongoose, { Schema } from "mongoose";
 import { IUser } from "../interface";
 import bcrypt from "bcrypt";
 
+// Log the available roles
+const VALID_ROLES = ["student", "tutor", "both"] as const;
+console.log("Valid roles:", VALID_ROLES);
+
 const UserSchema = new Schema<IUser>(
   {
     name: { type: String, required: true },
@@ -9,7 +13,10 @@ const UserSchema = new Schema<IUser>(
     password: { type: String, required: true },
     role: {
       type: String,
-      enum: ["student", "tutor", "parent"],
+      enum: {
+        values: VALID_ROLES,
+        message: "Role must be either 'student', 'tutor', or 'both'",
+      },
       default: "student",
     },
     enrolledCourses: [

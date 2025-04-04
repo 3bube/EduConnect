@@ -19,4 +19,6 @@ router.get("/:courseId", courses_controller_1.getCourseById);
 router.post("/:courseId/enroll", auth_middleware_1.authMiddleware, (req, res, next) => (0, courses_controller_1.enrollCourse)(req, res, next));
 router.get("/:courseId/lessons/:lessonId", auth_middleware_1.authMiddleware, (req, res, next) => (0, courses_controller_1.getLessonContent)(req, res, next));
 router.post("/:courseId/lessons/:lessonId/complete", auth_middleware_1.authMiddleware, (req, res, next) => (0, courses_controller_1.markLessonComplete)(req, res, next));
+// Resource download route
+router.get("/:courseId/resources/:resourceId", auth_middleware_1.authMiddleware, (req, res, next) => (0, courses_controller_1.getResource)(req, res, next));
 exports.default = router;

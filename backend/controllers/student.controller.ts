@@ -5,10 +5,12 @@ import User from "../models/user.model";
 import Assessment from "../models/assessment.models";
 import { ExtendedRequest } from "../middleware/auth.middleware";
 import { handleAsync } from "../utils/handler";
+import CourseProgress from "../models/courseProgress.model";
 
 // Get student dashboard data
 export const getStudentDashboard = handleAsync(
   async (req: ExtendedRequest, res: Response, next: NextFunction) => {
+    console.log("getStudentDashboard");
     if (!req.userId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -24,8 +26,6 @@ export const getStudentDashboard = handleAsync(
       path: "enrolledCourses",
       model: Course,
     });
-
-    console.log(enrolledCourses);
 
     // Get upcoming assignments
     const upcomingAssignments = await getUpcomingAssignments(req.userId);
@@ -52,7 +52,6 @@ export const getStudentDashboard = handleAsync(
 // Get enrolled courses with progress
 export const getEnrolledCoursesProgress = handleAsync(
   async (req: ExtendedRequest, res: Response, next: NextFunction) => {
-    console.log(req.userId);
     if (!req.userId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -101,6 +100,7 @@ export const getUpcomingClassesController = handleAsync(
 // Get learning stats
 export const getLearningStatsController = handleAsync(
   async (req: ExtendedRequest, res: Response, next: NextFunction) => {
+    console.log("getLearningStatsController");
     if (!req.userId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -110,10 +110,224 @@ export const getLearningStatsController = handleAsync(
   }
 );
 
+// Update course progress when completing a lesson
+export const updateLessonProgress = handleAsync(
+  async (req: ExtendedRequest, res: Response) => {
+    const { courseId, lessonId } = req.params;
+    const userId = req.userId;
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    console.log(
+      `Updating progress for user ${userId}, course ${courseId}, lesson ${lessonId}`
+    );
+
+    try {
+      // Find existing progress for this specific user and course
+      let progress = await CourseProgress.findOne({
+        userId: userId,
+        courseId: courseId,
+      });
+
+      // If no progress record exists, create one
+      if (!progress) {
+        console.log(
+          `Creating new progress record for user ${userId} and course ${courseId}`
+        );
+        progress = await CourseProgress.create({
+          userId,
+          courseId,
+          completedLessons: [new mongoose.Types.ObjectId(lessonId)],
+          timeSpent: 0,
+          lastAccessed: new Date(),
+          startDate: new Date(),
+        });
+      } else {
+        // Add lesson to completed lessons if not already completed
+        const lessonObjectId = new mongoose.Types.ObjectId(lessonId);
+
+        // Check if lesson is already in completed lessons
+        const alreadyCompleted = progress.completedLessons.some(
+          (id) => id.toString() === lessonObjectId.toString()
+        );
+
+        if (!alreadyCompleted) {
+          console.log(
+            `Adding lesson ${lessonId} to completed lessons for user ${userId}`
+          );
+          progress.completedLessons.push(lessonObjectId);
+          progress.lastAccessed = new Date();
+          await progress.save();
+        } else {
+          console.log(`Lesson ${lessonId} already completed by user ${userId}`);
+        }
+      }
+
+      res.status(200).json({
+        message: "Progress updated successfully",
+        progress: {
+          courseId: progress.courseId,
+          completedLessonsCount: progress.completedLessons.length,
+          timeSpent: progress.timeSpent,
+        },
+      });
+    } catch (error) {
+      console.error("Error updating lesson progress:", error);
+      res.status(500).json({
+        message: "Failed to update progress",
+        error: (error as Error).message,
+      });
+    }
+  }
+);
+
+// Update course progress when completing an assignment
+export const updateAssignmentProgress = handleAsync(
+  async (req: ExtendedRequest, res: Response) => {
+    const { courseId, assignmentId } = req.params;
+    const userId = req.userId;
+
+    let progress = await CourseProgress.findOne({ userId, courseId });
+
+    // If no progress record exists, create one
+    if (!progress) {
+      progress = await CourseProgress.create({
+        userId,
+        courseId,
+        completedAssignments: [new mongoose.Types.ObjectId(assignmentId)],
+        timeSpent: 0,
+      });
+    } else {
+      // Add assignment to completed assignments if not already completed
+      const assignmentObjectId = new mongoose.Types.ObjectId(assignmentId);
+      if (
+        !progress.completedAssignments.some((id) =>
+          id.equals(assignmentObjectId)
+        )
+      ) {
+        progress.completedAssignments.push(assignmentObjectId);
+        await progress.save();
+      }
+    }
+
+    res.status(200).json({ message: "Progress updated", progress });
+  }
+);
+
+// Update time spent on course
+export const updateTimeSpent = handleAsync(
+  async (req: ExtendedRequest, res: Response) => {
+    const { courseId } = req.params;
+    const { timeSpent } = req.body; // Time spent in minutes
+    const userId = req.userId;
+
+    let progress = await CourseProgress.findOne({ userId, courseId });
+
+    if (!progress) {
+      progress = await CourseProgress.create({
+        userId,
+        courseId,
+        timeSpent,
+      });
+    } else {
+      progress.timeSpent += timeSpent;
+      progress.lastAccessed = new Date();
+      await progress.save();
+    }
+
+    res.status(200).json({ message: "Time spent updated", progress });
+  }
+);
+
+// Create demo course progress
+export const createDemoCourseProgress = handleAsync(
+  async (req: ExtendedRequest, res: Response) => {
+    if (!req.userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    // Find user's enrolled courses
+    const user = await User.findById(req.userId);
+    if (!user || !user.enrolledCourses || user.enrolledCourses.length === 0) {
+      return res.status(404).json({ message: "No enrolled courses found" });
+    }
+
+    // Get course IDs
+    const enrolledCourseIds = user.enrolledCourses as mongoose.Types.ObjectId[];
+
+    // Get courses with lessons and assignments
+    const courses = await Course.find({ _id: { $in: enrolledCourseIds } });
+
+    let progressEntries = [];
+    let coursesUpdated = 0;
+
+    // Create progress entries for each course
+    for (const course of courses) {
+      // Check if progress already exists for this course and user
+      const existingProgress = await CourseProgress.findOne({
+        userId: req.userId,
+        courseId: course._id,
+      });
+
+      // Skip courses that already have progress
+      if (existingProgress && existingProgress.completedLessons.length > 0) {
+        console.log(`Skipping course ${course._id} - progress already exists`);
+        continue;
+      }
+
+      // Get random number of completed lessons (between 1 and total lessons)
+      const lessonIds =
+        course.lessons?.map(
+          (lesson) => new mongoose.Types.ObjectId(lesson.id)
+        ) || [];
+      const totalLessons = lessonIds.length;
+      const completedCount =
+        totalLessons > 0 ? Math.floor(Math.random() * totalLessons) + 1 : 0;
+      const completedLessons = lessonIds.slice(0, completedCount);
+
+      // Calculate random time spent (between 30 and 120 minutes per lesson)
+      const timeSpent = completedCount * (Math.floor(Math.random() * 90) + 30);
+
+      if (existingProgress) {
+        // Update existing progress but only if it's empty
+        if (existingProgress.completedLessons.length === 0) {
+          existingProgress.completedLessons = completedLessons;
+          existingProgress.timeSpent = timeSpent;
+          await existingProgress.save();
+          progressEntries.push(existingProgress);
+          coursesUpdated++;
+        }
+      } else {
+        // Create new progress
+        const newProgress = await CourseProgress.create({
+          userId: req.userId,
+          courseId: course._id,
+          completedLessons,
+          completedAssignments: [],
+          timeSpent,
+          lastAccessed: new Date(),
+          startDate: new Date(),
+        });
+        progressEntries.push(newProgress);
+        coursesUpdated++;
+      }
+    }
+
+    res.status(200).json({
+      message: "Demo course progress created",
+      count: coursesUpdated,
+    });
+  }
+);
+
 // Helper functions
 async function getEnrolledCoursesWithProgress(userId: string) {
   // Find user to get enrolled courses
   const user = await User.findById(userId);
+
+  console.log(user);
   if (!user || !user.enrolledCourses || user.enrolledCourses.length === 0) {
     return [];
   }
@@ -121,48 +335,86 @@ async function getEnrolledCoursesWithProgress(userId: string) {
   // Get enrolled course IDs
   const enrolledCourseIds = user.enrolledCourses as mongoose.Types.ObjectId[];
 
-  console.log(enrolledCourseIds);
-
   // Find courses with those IDs
   const courses = await Course.find({
     _id: { $in: enrolledCourseIds },
   });
 
-  // Calculate progress for each course
-  return courses.map((course) => {
-    // Find user progress for this course (could be stored in a separate collection)
-    // For now, we'll generate mock progress data
-    const totalLessons = course.lessons?.length || 1;
-    const completedLessons = Math.floor(Math.random() * totalLessons); // Mock data
-    const progress = Math.round((completedLessons / totalLessons) * 100);
-
-    // Find next lesson
-    let nextLesson = null;
-    if (course.lessons && course.lessons.length > completedLessons) {
-      const nextLessonData = course.lessons[completedLessons];
-      nextLesson = {
-        id: nextLessonData.id,
-        title: nextLessonData.title,
-      };
-    }
-
-    return {
-      _id: course._id,
-      title: course.title,
-      description: course.description,
-      category: course.category,
-      level: course.level,
-      price: course.price,
-      duration: course.duration,
-      image: course.image,
-      instructor: course.instructor,
-      tags: course.tags,
-      lessons: course.lessons,
-      progress,
-      completedLessons,
-      nextLesson,
-    };
+  // Get course progress data specifically for this user and their enrolled courses
+  const progressData = await CourseProgress.find({
+    userId: userId, // Explicitly filter by the current user ID
+    courseId: { $in: enrolledCourseIds },
   });
+
+  // Map progress data by course ID for easy lookup
+  const progressMap = new Map();
+  progressData.forEach((progress) => {
+    progressMap.set(progress.courseId.toString(), progress);
+  });
+
+  // Calculate real progress for each course
+  return Promise.all(
+    courses.map(async (course: any) => {
+      const courseId = course._id.toString();
+      const progress = progressMap.get(courseId);
+
+      // Calculate real progress based on completed lessons
+      const totalLessons = course.lessons?.length || 1;
+
+      // Only count completed lessons if progress record exists for this user and course
+      const completedLessons = progress ? progress.completedLessons.length : 0;
+
+      const progressPercentage = Math.round(
+        (completedLessons / totalLessons) * 100
+      );
+
+      // Find next lesson (first uncompleted lesson)
+      let nextLesson = null;
+      if (course.lessons && progress) {
+        // Convert completed lesson IDs to strings for comparison
+        const completedLessonIds = progress.completedLessons.map(
+          (id: mongoose.Types.ObjectId) => id.toString()
+        );
+
+        // Find first uncompleted lesson
+        const nextLessonData = course.lessons.find(
+          (lesson: any) => !completedLessonIds.includes(lesson.id)
+        );
+
+        if (nextLessonData) {
+          nextLesson = {
+            id: nextLessonData.id,
+            title: nextLessonData.title,
+          };
+        }
+      } else if (course.lessons && course.lessons.length > 0) {
+        // If no progress yet, suggest the first lesson
+        nextLesson = {
+          id: course.lessons[0].id,
+          title: course.lessons[0].title,
+        };
+      }
+
+      return {
+        _id: course._id,
+        title: course.title,
+        description: course.description,
+        category: course.category,
+        level: course.level,
+        price: course.price,
+        duration: course.duration,
+        image: course.image,
+        instructor: course.instructor,
+        tags: course.tags,
+        lessons: course.lessons,
+        progress: progressPercentage,
+        completedLessons,
+        totalLessons,
+        nextLesson,
+        timeSpent: progress ? progress.timeSpent : 0,
+      };
+    })
+  );
 }
 
 async function getUpcomingAssignments(userId: string) {
@@ -247,38 +499,80 @@ async function getRecommendedCourses(userId: string) {
 }
 
 async function getLearningStats(userId: string) {
+  console.log("Getting learning stats for user:", userId);
+
   // Get user's enrolled courses
   const user = await User.findById(userId);
   if (!user || !user.enrolledCourses || user.enrolledCourses.length === 0) {
+    console.log("No enrolled courses found for user");
     return {
       overallCompletion: 0,
       coursesEnrolled: 0,
-      hoursStudied: 0,
-      assignmentsCompleted: 0,
-      totalAssignments: 0,
     };
   }
 
   // Get enrolled course IDs
   const enrolledCourseIds = user.enrolledCourses as mongoose.Types.ObjectId[];
+  console.log("Enrolled courses:", enrolledCourseIds.length);
+
+  // Count the number of enrolled courses
   const coursesEnrolled = enrolledCourseIds.length;
 
-  // Calculate overall completion (mock data for now)
-  // In a real app, you would track user progress in each course
-  const overallCompletion = Math.floor(Math.random() * 100);
+  try {
+    // Get all courses to count their total lessons
+    const courses = await Course.find({
+      _id: { $in: enrolledCourseIds },
+    });
 
-  // Mock hours studied
-  const hoursStudied = Math.floor(Math.random() * 50) + 10;
+    // Calculate total lessons across all enrolled courses
+    let totalLessonsAcrossAllCourses = 0;
+    courses.forEach((course) => {
+      const lessonCount = (course as any).lessons?.length || 0;
+      totalLessonsAcrossAllCourses += lessonCount;
+      console.log(`Course ${course._id} has ${lessonCount} lessons`);
+    });
 
-  // Mock assignments data
-  const totalAssignments = Math.floor(Math.random() * 20) + 5;
-  const assignmentsCompleted = Math.floor(Math.random() * totalAssignments);
+    // Get progress data specific to this user
+    const progressData = await CourseProgress.find({
+      userId: userId,
+      courseId: { $in: enrolledCourseIds },
+    });
 
-  return {
-    overallCompletion,
-    coursesEnrolled,
-    hoursStudied,
-    assignmentsCompleted,
-    totalAssignments,
-  };
+    console.log(
+      `Found ${progressData.length} progress records for user ${userId}`
+    );
+
+    // Calculate total completed lessons for this specific user
+    let totalLessonsCompleted = 0;
+    progressData.forEach((progress) => {
+      const completedCount = progress.completedLessons?.length || 0;
+      totalLessonsCompleted += completedCount;
+      console.log(
+        `User completed ${completedCount} lessons in course ${progress.courseId}`
+      );
+    });
+
+    // Calculate overall completion percentage
+    const overallCompletion =
+      totalLessonsAcrossAllCourses > 0
+        ? Math.round(
+            (totalLessonsCompleted / totalLessonsAcrossAllCourses) * 100
+          )
+        : 0;
+
+    const stats = {
+      overallCompletion,
+      coursesEnrolled,
+    };
+
+    console.log("Calculated stats for user", userId, ":", stats);
+    return stats;
+  } catch (error) {
+    console.error("Error calculating learning stats:", error);
+    // Return default values in case of error
+    return {
+      overallCompletion: 0,
+      coursesEnrolled,
+    };
+  }
 }

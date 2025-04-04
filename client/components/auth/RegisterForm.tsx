@@ -25,7 +25,7 @@ export function RegisterForm() {
     email: "",
     password: "",
     confirmPassword: "",
-    role: "student" as "student" | "tutor",
+    role: "student" as "student" | "tutor" | "both",
   });
   const [error, setError] = useState("");
   const { register, isLoading } = useAuth();
@@ -35,7 +35,7 @@ export function RegisterForm() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleRoleChange = (value: "student" | "tutor") => {
+  const handleRoleChange = (value: "student" | "tutor" | "both") => {
     setFormData((prev) => ({ ...prev, role: value }));
   };
 
@@ -138,6 +138,10 @@ export function RegisterForm() {
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="tutor" id="tutor" />
                 <Label htmlFor="tutor">Tutor</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="both" id="both" />
+                <Label htmlFor="both">Both</Label>
               </div>
             </RadioGroup>
           </div>

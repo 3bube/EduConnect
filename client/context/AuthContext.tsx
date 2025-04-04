@@ -18,6 +18,7 @@ type AuthContextType = {
   register: (userData: RegisterData) => Promise<void>;
   logout: () => void;
   resetPassword: (email: string) => Promise<void>;
+  updateUserData: (updatedUser: User) => void;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -44,12 +45,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      const { user, accessToken } = await loginApi(email, password);
+      const response = await loginApi(email, password);
 
-      setUser(user);
-      localStorage.setItem("user", JSON.stringify(user));
-      localStorage.setItem("token", accessToken);
-      if (user?.role === "tutor") {
+      console.log("Login response:", response);
+
+      // Fix the user data structure to match our User interface
+      const userData: User = {
+        _id: response.user.id,
+        name: response.user.name,
+        email: response.user.email,
+        role: response.user.role as "student" | "tutor", // Cast to our more specific type
+        avatar: response.user.avatar,
+        enrolledCourses: [], // Initialize as empty array
+      };
+
+      setUser(userData);
+      localStorage.setItem("user", JSON.stringify(userData));
+      localStorage.setItem("token", String(response.accessToken));
+
+      if (userData.role === "tutor") {
         router.push("/tutor-dashboard");
       } else {
         router.push("/dashboard");
@@ -97,9 +111,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateUserData = (updatedUser: User) => {
+    setUser(updatedUser);
+    localStorage.setItem("user", JSON.stringify(updatedUser));
+    console.log("User data updated in context:", updatedUser);
+  };
+
   return (
     <AuthContext.Provider
-      value={{ user, isLoading, login, register, logout, resetPassword }}
+      value={{
+        user,
+        isLoading,
+        login,
+        register,
+        logout,
+        resetPassword,
+        updateUserData,
+      }}
     >
       {children}
     </AuthContext.Provider>

@@ -1,18 +1,11 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import type React from "react";
 
 import { createContext, useContext, useEffect, useState } from "react";
 
-type Theme =
-  | "light"
-  | "dark"
-  | "system"
-  | "purple"
-  | "blue"
-  | "green"
-  | "orange"
-  | "pink";
+type Theme = "light" | "dark";
 type ThemeProviderProps = {
   children: React.ReactNode;
   defaultTheme?: Theme;
@@ -36,7 +29,7 @@ type ThemeProviderState = {
 };
 
 const initialState: ThemeProviderState = {
-  theme: "system",
+  theme: "light",
   setTheme: () => null,
   themes: [
     {
@@ -61,72 +54,6 @@ const initialState: ThemeProviderState = {
         foreground: "#f8fafc",
       },
     },
-    {
-      name: "system",
-      label: "System",
-      colors: {
-        primary: "",
-        secondary: "",
-        accent: "",
-        background: "",
-        foreground: "",
-      },
-    },
-    {
-      name: "purple",
-      label: "Purple",
-      colors: {
-        primary: "#f8fafc",
-        secondary: "#e2e8f0",
-        accent: "#8b5cf6",
-        background: "#581c87",
-        foreground: "#f8fafc",
-      },
-    },
-    {
-      name: "blue",
-      label: "Blue",
-      colors: {
-        primary: "#f8fafc",
-        secondary: "#e2e8f0",
-        accent: "#3b82f6",
-        background: "#1e3a8a",
-        foreground: "#f8fafc",
-      },
-    },
-    {
-      name: "green",
-      label: "Green",
-      colors: {
-        primary: "#f8fafc",
-        secondary: "#e2e8f0",
-        accent: "#10b981",
-        background: "#064e3b",
-        foreground: "#f8fafc",
-      },
-    },
-    {
-      name: "orange",
-      label: "Orange",
-      colors: {
-        primary: "#f8fafc",
-        secondary: "#e2e8f0",
-        accent: "#f97316",
-        background: "#7c2d12",
-        foreground: "#f8fafc",
-      },
-    },
-    {
-      name: "pink",
-      label: "Pink",
-      colors: {
-        primary: "#f8fafc",
-        secondary: "#e2e8f0",
-        accent: "#ec4899",
-        background: "#831843",
-        foreground: "#f8fafc",
-      },
-    },
   ],
 };
 
@@ -134,7 +61,7 @@ const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
 
 export function ThemeProvider({
   children,
-  defaultTheme = "system",
+  defaultTheme = "light",
   storageKey = "vite-ui-theme",
   ...props
 }: ThemeProviderProps) {
@@ -153,7 +80,7 @@ export function ThemeProvider({
       "pink"
     );
 
-    if (theme === "system") {
+    if (theme === "light") {
       const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
         .matches
         ? "dark"

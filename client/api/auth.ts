@@ -18,7 +18,7 @@ export interface RegisterData {
   name: string;
   email: string;
   password: string;
-  role: "student" | "tutor";
+  role: "student" | "tutor" | "both";
 }
 
 export const login = async (email: string, password: string) =>

@@ -2,8 +2,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useState, useRef } from "react";
-import { usePDF } from "react-to-pdf";
+import { useState, useRef, useEffect } from "react";
+import { toPng } from "html-to-image";
+import { jsPDF } from "jspdf";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -43,6 +44,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import Image from "next/image";
+import { Checkbox } from "@/components/ui/checkbox";
+import { PageHeader } from "@/components/PageHeader";
+import { cn } from "@/lib/utils";
 
 const resumeTemplates = [
   {
@@ -73,71 +77,140 @@ const resumeTemplates = [
 
 const initialResumeData = {
   personalInfo: {
-    fullName: "Alex Johnson",
-    email: "alex.johnson@example.com",
-    phone: "(555) 123-4567",
-    location: "San Francisco, CA",
-    website: "alexjohnson.dev",
-    linkedin: "linkedin.com/in/alexjohnson",
-    github: "github.com/alexjohnson",
+    name: "",
+    title: "",
+    email: "",
+    phone: "",
+    location: "",
+    website: "",
+    summary: "",
   },
-  summary:
-    "Computer Science student with a passion for web development and UI/UX design. Seeking opportunities to apply my skills in a collaborative environment and contribute to innovative projects.",
-  education: [
-    {
-      id: "edu1",
-      institution: "University of California, Berkeley",
-      degree: "Bachelor of Science in Computer Science",
-      startDate: "2022-09",
-      endDate: "2026-05",
-      location: "Berkeley, CA",
-      description:
-        "GPA: 3.8/4.0. Relevant coursework: Data Structures, Algorithms, Web Development, UI/UX Design, Database Systems.",
-    },
-  ],
-  experience: [
-    {
-      id: "exp1",
-      title: "Web Development Intern",
-      company: "TechStart Inc.",
-      startDate: "2024-06",
-      endDate: "2024-08",
-      location: "San Francisco, CA",
-      description:
-        "Developed and maintained responsive web applications using React and Node.js. Collaborated with the design team to implement UI/UX improvements. Participated in code reviews and agile development processes.",
-      current: false,
-    },
-  ],
-  skills: [
-    { id: "skill1", name: "JavaScript", level: "advanced" },
-    { id: "skill2", name: "React", level: "intermediate" },
-    { id: "skill3", name: "HTML/CSS", level: "advanced" },
-    { id: "skill4", name: "Node.js", level: "intermediate" },
-    { id: "skill5", name: "Python", level: "intermediate" },
-    { id: "skill6", name: "UI/UX Design", level: "intermediate" },
-    { id: "skill7", name: "Git", level: "intermediate" },
-    { id: "skill8", name: "Figma", level: "intermediate" },
-  ],
-  projects: [
-    {
-      id: "proj1",
-      title: "Personal Portfolio Website",
-      description:
-        "Designed and developed a responsive personal portfolio website using React, Next.js, and Tailwind CSS.",
-      link: "https://alexjohnson.dev",
-      technologies: ["React", "Next.js", "Tailwind CSS"],
-    },
-  ],
-  certifications: [
-    {
-      id: "cert1",
-      name: "React Developer Certification",
-      issuer: "Frontend Masters",
-      date: "2024-02",
-      link: "https://frontendmasters.com/cert/123456",
-    },
-  ],
+  experience: [],
+  education: [],
+  skills: [],
+  templateId: "modern",
 };
+
+const validateResumeData = (resumeData: any) => {
+  const errors = [];
+
+  // Validate personal info
+  if (!resumeData.personalInfo.name.trim()) {
+    errors.push("Name is required");
+  }
+
+  if (!resumeData.personalInfo.email.trim()) {
+    errors.push("Email is required");
+  } else {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(resumeData.personalInfo.email)) {
+      errors.push("Please enter a valid email address");
+    }
+  }
+
+  // Validate experience entries if any exist
+  if (resumeData.experience.length > 0) {
+    resumeData.experience.forEach((exp: any, index: number) => {
+      if (!exp.company?.trim()) {
+        errors.push(`Experience ${index + 1}: Company name is required`);
+      }
+      if (!exp.title?.trim()) {
+        errors.push(`Experience ${index + 1}: Job title is required`);
+      }
+      if (!exp.startDate?.trim()) {
+        errors.push(`Experience ${index + 1}: Start date is required`);
+      }
+    });
+  }
+
+  // Validate education entries if any exist
+  if (resumeData.education.length > 0) {
+    resumeData.education.forEach((edu: any, index: number) => {
+      if (!edu.institution?.trim()) {
+        errors.push(`Education ${index + 1}: Institution is required`);
+      }
+      if (!edu.degree?.trim()) {
+        errors.push(`Education ${index + 1}: Degree is required`);
+      }
+      if (!edu.startDate?.trim()) {
+        errors.push(`Education ${index + 1}: Start date is required`);
+      }
+    });
+  }
+
+  return errors;
+};
+
+const commonTechSkills = [
+  "JavaScript",
+  "TypeScript",
+  "React",
+  "Angular",
+  "Vue.js",
+  "Node.js",
+  "Express",
+  "Python",
+  "Django",
+  "Flask",
+  "Java",
+  "Spring Boot",
+  "C#",
+  ".NET",
+  "PHP",
+  "Laravel",
+  "Ruby",
+  "Ruby on Rails",
+  "HTML",
+  "CSS",
+  "SASS/SCSS",
+  "TailwindCSS",
+  "Bootstrap",
+  "MaterialUI",
+  "MongoDB",
+  "PostgreSQL",
+  "MySQL",
+  "SQL Server",
+  "Oracle",
+  "Firebase",
+  "AWS",
+  "Azure",
+  "GCP",
+  "Docker",
+  "Kubernetes",
+  "Git",
+  "GitHub",
+  "GitLab",
+  "CI/CD",
+  "RESTful APIs",
+  "GraphQL",
+  "Jest",
+  "Mocha",
+  "Chai",
+  "Cypress",
+  "Selenium",
+  "Redux",
+  "Webpack",
+  "Babel",
+  "Next.js",
+  "React Native",
+  "Flutter",
+  "Swift",
+  "Kotlin",
+  "Golang",
+  "Rust",
+  "Data Structures",
+  "Algorithms",
+  "System Design",
+  "Object-Oriented Programming",
+  "Functional Programming",
+  "Agile Methodologies",
+  "Scrum",
+  "Jira",
+  "UI/UX Design",
+  "Figma",
+  "Adobe XD",
+  "Sketch",
+];
 
 function formatDate(dateString: string) {
   if (!dateString) return "";
@@ -177,76 +250,140 @@ function getSectionDefaults(section: string) {
   }
 }
 
-function PersonalInfoSection({
-  data,
-  onChange,
-}: {
-  data: any;
-  onChange: (field: string, value: string) => void;
-}) {
+function PersonalInfoSection({ personalInfo, onChange }: any) {
+  const validateField = (field: string, value: string) => {
+    onChange(field, value);
+
+    // Add validation for required fields
+    if (field === "name" && !value.trim()) {
+      toast.error("Name is required");
+      return false;
+    }
+
+    // Email validation
+    if (field === "email") {
+      if (!value.trim()) {
+        toast.error("Email is required");
+        return false;
+      }
+
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(value)) {
+        toast.error("Please enter a valid email address");
+        return false;
+      }
+    }
+
+    // Phone validation (optional but validate format if provided)
+    if (field === "phone" && value.trim()) {
+      const phoneRegex = /^\+?[0-9\s\-\(\)]{8,20}$/;
+      if (!phoneRegex.test(value)) {
+        toast.error("Please enter a valid phone number");
+        return false;
+      }
+    }
+
+    // Website validation (optional but validate format if provided)
+    if (field === "website" && value.trim()) {
+      try {
+        new URL(value);
+      } catch (e) {
+        toast.error(
+          "Please enter a valid website URL (include http:// or https://)"
+        );
+        return false;
+      }
+    }
+
+    return true;
+  };
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Personal Information</CardTitle>
-        <CardDescription>Add your contact and personal details</CardDescription>
+        <CardDescription>Enter your personal details</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="fullName">Full Name</Label>
-            <Input
-              id="fullName"
-              value={data.fullName}
-              onChange={(e) => onChange("fullName", e.target.value)}
-            />
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <Label htmlFor="name">Name</Label>
+              <Input
+                id="name"
+                value={personalInfo.name}
+                onChange={(e) => validateField("name", e.target.value)}
+                placeholder="John Doe"
+                className="mt-1"
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="title">Professional Title</Label>
+              <Input
+                id="title"
+                value={personalInfo.title}
+                onChange={(e) => onChange("title", e.target.value)}
+                placeholder="Frontend Developer"
+                className="mt-1"
+              />
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              value={data.email}
-              onChange={(e) => onChange("email", e.target.value)}
-            />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={personalInfo.email}
+                onChange={(e) => validateField("email", e.target.value)}
+                placeholder="john.doe@example.com"
+                className="mt-1"
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="phone">Phone</Label>
+              <Input
+                id="phone"
+                value={personalInfo.phone}
+                onChange={(e) => validateField("phone", e.target.value)}
+                placeholder="+1 234 567 890"
+                className="mt-1"
+              />
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="phone">Phone</Label>
-            <Input
-              id="phone"
-              value={data.phone}
-              onChange={(e) => onChange("phone", e.target.value)}
-            />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <Label htmlFor="location">Location</Label>
+              <Input
+                id="location"
+                value={personalInfo.location}
+                onChange={(e) => onChange("location", e.target.value)}
+                placeholder="City, Country"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="website">Website or LinkedIn</Label>
+              <Input
+                id="website"
+                value={personalInfo.website}
+                onChange={(e) => validateField("website", e.target.value)}
+                placeholder="https://example.com"
+                className="mt-1"
+              />
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="location">Location</Label>
-            <Input
-              id="location"
-              value={data.location}
-              onChange={(e) => onChange("location", e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="website">Website (Optional)</Label>
-            <Input
-              id="website"
-              value={data.website}
-              onChange={(e) => onChange("website", e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="linkedin">LinkedIn (Optional)</Label>
-            <Input
-              id="linkedin"
-              value={data.linkedin}
-              onChange={(e) => onChange("linkedin", e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="github">GitHub (Optional)</Label>
-            <Input
-              id="github"
-              value={data.github}
-              onChange={(e) => onChange("github", e.target.value)}
+          <div>
+            <Label htmlFor="summary">Professional Summary</Label>
+            <Textarea
+              id="summary"
+              value={personalInfo.summary}
+              onChange={(e) => onChange("summary", e.target.value)}
+              placeholder="A brief summary of your professional background and career objectives"
+              className="mt-1"
+              rows={4}
             />
           </div>
         </div>
@@ -344,67 +481,105 @@ function DynamicSection({
 }
 
 function EducationItem({ item, onChange, onRemove }: any) {
+  const validateSection = (section: any, field: string, value: string) => {
+    onChange(section, field, value);
+
+    // Add basic validation
+    const fieldsToValidate = {
+      institution: "Institution name is required",
+      degree: "Degree is required",
+      fieldOfStudy: "Field of study is required",
+      startDate: "Start date is required",
+    };
+
+    if (field in fieldsToValidate && !value.trim()) {
+      toast.error(fieldsToValidate[field as keyof typeof fieldsToValidate]);
+      return false;
+    }
+
+    return true;
+  };
+
   return (
     <div className="grid gap-4 sm:grid-cols-2">
-      <div className="space-y-2">
+      <div className="sm:col-span-2">
         <Label htmlFor={`institution-${item.id}`}>Institution</Label>
         <Input
           id={`institution-${item.id}`}
           value={item.institution}
-          onChange={(e) => onChange(item.id, "institution", e.target.value)}
+          onChange={(e) =>
+            validateSection(item.id, "institution", e.target.value)
+          }
         />
       </div>
-      <div className="space-y-2">
+      <div className="sm:col-span-2">
         <Label htmlFor={`degree-${item.id}`}>Degree</Label>
         <Input
           id={`degree-${item.id}`}
           value={item.degree}
-          onChange={(e) => onChange(item.id, "degree", e.target.value)}
+          onChange={(e) => validateSection(item.id, "degree", e.target.value)}
         />
       </div>
-      <div className="space-y-2">
+      <div>
         <Label htmlFor={`startDate-${item.id}`}>Start Date</Label>
         <Input
           id={`startDate-${item.id}`}
           type="month"
           value={item.startDate}
-          onChange={(e) => onChange(item.id, "startDate", e.target.value)}
+          onChange={(e) =>
+            validateSection(item.id, "startDate", e.target.value)
+          }
         />
       </div>
-      <div className="space-y-2">
-        <Label htmlFor={`endDate-${item.id}`}>End Date (or Expected)</Label>
+      <div>
+        <Label htmlFor={`endDate-${item.id}`}>End Date</Label>
         <Input
           id={`endDate-${item.id}`}
           type="month"
           value={item.endDate}
-          onChange={(e) => onChange(item.id, "endDate", e.target.value)}
+          onChange={(e) => {
+            if (item.current) {
+              return;
+            }
+            onChange(item.id, "endDate", e.target.value);
+          }}
+          disabled={item.current}
         />
       </div>
-      <div className="space-y-2">
-        <Label htmlFor={`location-${item.id}`}>Location</Label>
-        <Input
-          id={`location-${item.id}`}
-          value={item.location}
-          onChange={(e) => onChange(item.id, "location", e.target.value)}
+      <div className="flex items-center space-x-2 sm:col-span-2">
+        <Checkbox
+          id={`current-${item.id}`}
+          checked={item.current}
+          onCheckedChange={(checked) => {
+            const isChecked = Boolean(checked);
+            onChange(item.id, "current", isChecked);
+            if (isChecked) {
+              onChange(item.id, "endDate", "Present");
+            } else if (item.endDate === "Present") {
+              onChange(item.id, "endDate", "");
+            }
+          }}
         />
-      </div>
-      <div className="sm:col-span-2 space-y-2">
-        <Label htmlFor={`description-${item.id}`}>
-          Description (GPA, Achievements, Coursework)
+        <Label htmlFor={`current-${item.id}`} className="text-sm font-normal">
+          I currently study here
         </Label>
+      </div>
+      <div className="sm:col-span-2">
+        <Label htmlFor={`description-${item.id}`}>Description</Label>
         <Textarea
           id={`description-${item.id}`}
           value={item.description}
           onChange={(e) => onChange(item.id, "description", e.target.value)}
+          rows={3}
         />
       </div>
-      <div className="mt-4 flex justify-end">
+      <div className="flex items-center sm:col-span-2">
         <Button
-          variant="destructive"
           size="sm"
+          variant="destructive"
           onClick={() => onRemove(item.id)}
         >
-          <Trash2 className="mr-1 h-4 w-4" />
+          <Trash2 className="mr-2 h-4 w-4" />
           Remove
         </Button>
       </div>
@@ -413,6 +588,25 @@ function EducationItem({ item, onChange, onRemove }: any) {
 }
 
 function ExperienceItem({ item, onChange, onRemove }: any) {
+  const validateSection = (section: any, field: string, value: string) => {
+    onChange(section, field, value);
+
+    // Add basic validation
+    const fieldsToValidate = {
+      company: "Company name is required",
+      position: "Position is required",
+      startDate: "Start date is required",
+      location: "Location is required",
+    };
+
+    if (field in fieldsToValidate && !value.trim()) {
+      toast.error(fieldsToValidate[field as keyof typeof fieldsToValidate]);
+      return false;
+    }
+
+    return true;
+  };
+
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       <div className="space-y-2">
@@ -420,7 +614,7 @@ function ExperienceItem({ item, onChange, onRemove }: any) {
         <Input
           id={`title-${item.id}`}
           value={item.title}
-          onChange={(e) => onChange(item.id, "title", e.target.value)}
+          onChange={(e) => validateSection(item.id, "title", e.target.value)}
         />
       </div>
       <div className="space-y-2">
@@ -428,7 +622,7 @@ function ExperienceItem({ item, onChange, onRemove }: any) {
         <Input
           id={`company-${item.id}`}
           value={item.company}
-          onChange={(e) => onChange(item.id, "company", e.target.value)}
+          onChange={(e) => validateSection(item.id, "company", e.target.value)}
         />
       </div>
       <div className="space-y-2">
@@ -437,7 +631,9 @@ function ExperienceItem({ item, onChange, onRemove }: any) {
           id={`startDate-${item.id}`}
           type="month"
           value={item.startDate}
-          onChange={(e) => onChange(item.id, "startDate", e.target.value)}
+          onChange={(e) =>
+            validateSection(item.id, "startDate", e.target.value)
+          }
         />
       </div>
       <div className="space-y-2">
@@ -460,7 +656,12 @@ function ExperienceItem({ item, onChange, onRemove }: any) {
           id={`endDate-${item.id}`}
           type="month"
           value={item.endDate}
-          onChange={(e) => onChange(item.id, "endDate", e.target.value)}
+          onChange={(e) => {
+            if (item.current) {
+              return;
+            }
+            onChange(item.id, "endDate", e.target.value);
+          }}
           disabled={item.current}
         />
       </div>
@@ -469,7 +670,7 @@ function ExperienceItem({ item, onChange, onRemove }: any) {
         <Input
           id={`location-${item.id}`}
           value={item.location}
-          onChange={(e) => onChange(item.id, "location", e.target.value)}
+          onChange={(e) => validateSection(item.id, "location", e.target.value)}
         />
       </div>
       <div className="sm:col-span-2 space-y-2">
@@ -499,6 +700,35 @@ function ExperienceItem({ item, onChange, onRemove }: any) {
 }
 
 function SkillsSection({ skills, onAdd, onChange, onRemove }: any) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  const filteredSuggestions = commonTechSkills
+    .filter(
+      (skill) =>
+        skill.toLowerCase().includes(searchTerm.toLowerCase()) &&
+        !skills.some((s: any) => s.name.toLowerCase() === skill.toLowerCase())
+    )
+    .slice(0, 5);
+
+  const handleAddSkill = (skill: string, level = "intermediate") => {
+    if (!skill.trim()) return;
+
+    // Check if skill already exists
+    if (skills.some((s: any) => s.name.toLowerCase() === skill.toLowerCase())) {
+      toast.error("This skill is already in your resume");
+      return;
+    }
+
+    onAdd();
+    // Set the new skill's name and level
+    setTimeout(() => {
+      onChange(`skills${skills.length + 1}`, "name", skill);
+      onChange(`skills${skills.length + 1}`, "level", level);
+    }, 0);
+    setSearchTerm("");
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -509,10 +739,51 @@ function SkillsSection({ skills, onAdd, onChange, onRemove }: any) {
               Add your technical and soft skills
             </CardDescription>
           </div>
-          <Button onClick={onAdd} size="sm">
-            <Plus className="mr-1 h-4 w-4" />
-            Add Skill
-          </Button>
+          <div className="relative">
+            <div className="flex">
+              <Input
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setShowSuggestions(true);
+                }}
+                onFocus={() => setShowSuggestions(true)}
+                placeholder="Search skills..."
+                className="mr-2"
+              />
+              <Button
+                onClick={() => {
+                  handleAddSkill(searchTerm);
+                  setShowSuggestions(false);
+                }}
+                disabled={!searchTerm.trim()}
+                size="sm"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {showSuggestions &&
+              searchTerm &&
+              filteredSuggestions.length > 0 && (
+                <div className="absolute z-10 mt-1 w-full rounded-md border bg-background shadow-lg">
+                  <ul className="py-1">
+                    {filteredSuggestions.map((skill) => (
+                      <li
+                        key={skill}
+                        className="cursor-pointer px-4 py-2 hover:bg-accent"
+                        onClick={() => {
+                          handleAddSkill(skill);
+                          setShowSuggestions(false);
+                        }}
+                      >
+                        {skill}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -554,7 +825,7 @@ function SkillsSection({ skills, onAdd, onChange, onRemove }: any) {
             <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-6 text-center">
               <h3 className="font-medium">No Skills Added</h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                Click the Add Skill button to add your skills
+                Search and add skills using the search box above
               </p>
             </div>
           )}
@@ -748,441 +1019,597 @@ function CertificationItem({ item, onChange, onRemove }: any) {
   );
 }
 
-function ResumeTemplateSelector({
-  templates,
-  selectedTemplate,
+function TemplateSelection({
+  selected,
   onSelect,
-  onBack,
-  onContinue,
-}: any) {
+}: {
+  selected: string;
+  onSelect: (id: string) => void;
+}) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Choose a Resume Template</CardTitle>
-        <CardDescription>
-          Select a template that best represents your professional style
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {templates.map((template: any) => (
-            <div
-              key={template.id}
-              className={`cursor-pointer rounded-lg border p-4 transition-all hover:border-primary ${
-                selectedTemplate === template.id
-                  ? "border-primary ring-2 ring-primary"
-                  : ""
-              }`}
-              onClick={() => onSelect(template.id)}
-            >
-              <div className="relative mb-2 overflow-hidden rounded-md">
-                <Image
-                  src={template.preview || "/placeholder.svg"}
-                  alt={template.name}
-                  className="h-auto w-full object-cover"
-                  width={150}
-                  height={200}
-                />
-                {selectedTemplate === template.id && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-primary/20">
-                    <div className="rounded-full bg-primary p-1 text-primary-foreground">
-                      <Check className="h-4 w-4" />
-                    </div>
-                  </div>
-                )}
-              </div>
-              <h3 className="font-medium">{template.name}</h3>
-              <p className="text-sm text-muted-foreground">
-                {template.description}
-              </p>
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold">Choose a Template</h2>
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {resumeTemplates.map((template) => (
+          <Card
+            key={template.id}
+            className={cn(
+              "cursor-pointer transition-all",
+              selected === template.id && "ring-2 ring-primary"
+            )}
+            onClick={() => onSelect(template.id)}
+          >
+            <div className="aspect-[210/297] overflow-hidden rounded-t-lg bg-muted">
+              <Image
+                src={template.preview}
+                alt={template.name}
+                width={300}
+                height={420}
+                className="h-full w-full object-cover"
+              />
             </div>
-          ))}
-        </div>
-      </CardContent>
-      <CardFooter className="flex justify-between">
-        <Button variant="outline" onClick={onBack}>
-          Back to Content
-        </Button>
-        <Button onClick={onContinue}>
-          Preview Resume
-          <ChevronRight className="ml-2 h-4 w-4" />
-        </Button>
-      </CardFooter>
-    </Card>
+            <CardFooter className="flex items-center justify-between p-4">
+              <div>
+                <CardTitle className="text-base">{template.name}</CardTitle>
+                <CardDescription>{template.description}</CardDescription>
+              </div>
+              {selected === template.id && (
+                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                  <Check className="h-4 w-4" />
+                </div>
+              )}
+            </CardFooter>
+          </Card>
+        ))}
+      </div>
+    </div>
   );
 }
 
-function ResumePreview({ data, onBack, onSave, onDownload, targetRef }: any) {
+function ResumePreview({
+  data,
+  onBack,
+  onSave,
+  onDownload,
+  targetRef,
+  onClear,
+}: any) {
+  const { personalInfo, experience, education, skills, templateId } = data;
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Resume Preview</CardTitle>
-        <CardDescription>
-          Preview your resume before downloading
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="rounded-lg border p-6">
-          <div
-            className="mx-auto max-w-[800px] bg-white p-8 shadow-lg"
-            ref={targetRef}
-          >
-            <div className="border-b pb-4">
-              <h1 className="text-3xl font-bold">
-                {data.personalInfo.fullName}
-              </h1>
-              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                <span>{data.personalInfo.email}</span>
-                <span>{data.personalInfo.phone}</span>
-                <span>{data.personalInfo.location}</span>
-                {data.personalInfo.website && (
-                  <span>{data.personalInfo.website}</span>
-                )}
-                {data.personalInfo.linkedin && (
-                  <span>{data.personalInfo.linkedin}</span>
-                )}
-                {data.personalInfo.github && (
-                  <span>{data.personalInfo.github}</span>
-                )}
-              </div>
-            </div>
-
-            <div className="mt-6">
-              <h2 className="text-xl font-semibold">Professional Summary</h2>
-              <p className="mt-2">{data.summary}</p>
-            </div>
-
-            {data.education.length > 0 && (
-              <div className="mt-6">
-                <h2 className="text-xl font-semibold">Education</h2>
-                <div className="mt-2 space-y-4">
-                  {data.education.map((edu: any) => (
-                    <div key={edu.id}>
-                      <div className="flex flex-col justify-between sm:flex-row">
-                        <div>
-                          <h3 className="font-medium">{edu.institution}</h3>
-                          <p>{edu.degree}</p>
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          <p>{edu.location}</p>
-                          <p>
-                            {formatDate(edu.startDate)} -{" "}
-                            {formatDate(edu.endDate)}
-                          </p>
-                        </div>
-                      </div>
-                      {edu.description && (
-                        <p className="mt-1 text-sm">{edu.description}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {data.experience.length > 0 && (
-              <div className="mt-6">
-                <h2 className="text-xl font-semibold">Experience</h2>
-                <div className="mt-2 space-y-4">
-                  {data.experience.map((exp: any) => (
-                    <div key={exp.id}>
-                      <div className="flex flex-col justify-between sm:flex-row">
-                        <div>
-                          <h3 className="font-medium">{exp.title}</h3>
-                          <p>{exp.company}</p>
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          <p>{exp.location}</p>
-                          <p>
-                            {formatDate(exp.startDate)} -{" "}
-                            {exp.current ? "Present" : formatDate(exp.endDate)}
-                          </p>
-                        </div>
-                      </div>
-                      {exp.description && (
-                        <p className="mt-1 text-sm">{exp.description}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {data.skills.length > 0 && (
-              <div className="mt-6">
-                <h2 className="text-xl font-semibold">Skills</h2>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {data.skills.map((skill: any) => (
-                    <Badge key={skill.id} variant="secondary">
-                      {skill.name}{" "}
-                      {skill.level !== "beginner" &&
-                        `(${
-                          skill.level.charAt(0).toUpperCase() +
-                          skill.level.slice(1)
-                        })`}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {data.projects.length > 0 && (
-              <div className="mt-6">
-                <h2 className="text-xl font-semibold">Projects</h2>
-                <div className="mt-2 space-y-4">
-                  {data.projects.map((project: any) => (
-                    <div key={project.id}>
-                      <h3 className="font-medium">{project.title}</h3>
-                      <p className="mt-1 text-sm">{project.description}</p>
-                      {project.technologies.length > 0 && (
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {project.technologies.map(
-                            (tech: string, index: number) => (
-                              <Badge
-                                key={index}
-                                variant="outline"
-                                className="text-xs"
-                              >
-                                {tech}
-                              </Badge>
-                            )
-                          )}
-                        </div>
-                      )}
-                      {project.link && (
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          Link: {project.link}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {data.certifications.length > 0 && (
-              <div className="mt-6">
-                <h2 className="text-xl font-semibold">Certifications</h2>
-                <div className="mt-2 space-y-2">
-                  {data.certifications.map((cert: any) => (
-                    <div key={cert.id}>
-                      <div className="flex flex-col justify-between sm:flex-row">
-                        <div>
-                          <h3 className="font-medium">{cert.name}</h3>
-                          <p className="text-sm">{cert.issuer}</p>
-                        </div>
-                        {cert.date && (
-                          <p className="text-sm text-muted-foreground">
-                            {formatDate(cert.date)}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </CardContent>
-      <CardFooter className="flex justify-between">
-        <Button variant="outline" onClick={onBack}>
-          Back to Templates
-        </Button>
-        <div className="space-x-2">
+    <div className="space-y-8">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold">Resume Preview</h2>
+        <div className="flex space-x-3">
+          <Button variant="outline" onClick={onBack}>
+            Edit Content
+          </Button>
           <Button variant="outline" onClick={onSave}>
             <Save className="mr-2 h-4 w-4" />
-            Save Resume
+            Save
           </Button>
           <Button onClick={onDownload}>
             <Download className="mr-2 h-4 w-4" />
             Download PDF
           </Button>
+          <Button variant="destructive" onClick={onClear}>
+            <Trash2 className="mr-2 h-4 w-4" />
+            Clear Resume
+          </Button>
         </div>
-      </CardFooter>
-    </Card>
+      </div>
+
+      <div className="rounded-lg border bg-card shadow-sm">
+        <div className="p-6">
+          <div
+            ref={targetRef}
+            className="mx-auto max-w-[210mm] rounded-md bg-white p-12"
+          >
+            {/* Resume Header */}
+            <div className="mb-6 border-b pb-6">
+              <h1 className="text-3xl font-bold text-primary">
+                {personalInfo.name || "Your Name"}
+              </h1>
+              {personalInfo.title && (
+                <p className="mt-1 text-xl">{personalInfo.title}</p>
+              )}
+
+              <div className="mt-3 flex flex-wrap gap-2 text-sm">
+                {personalInfo.email && (
+                  <div className="flex items-center gap-1">
+                    <span className="font-medium">Email:</span>{" "}
+                    {personalInfo.email}
+                  </div>
+                )}
+                {personalInfo.phone && (
+                  <div className="flex items-center gap-1">
+                    <span className="font-medium">Phone:</span>{" "}
+                    {personalInfo.phone}
+                  </div>
+                )}
+                {personalInfo.location && (
+                  <div className="flex items-center gap-1">
+                    <span className="font-medium">Location:</span>{" "}
+                    {personalInfo.location}
+                  </div>
+                )}
+                {personalInfo.website && (
+                  <div className="flex items-center gap-1">
+                    <span className="font-medium">Website:</span>{" "}
+                    {personalInfo.website}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Professional Summary */}
+            {personalInfo.summary && (
+              <div className="mb-6">
+                <h2 className="mb-2 text-xl font-bold">Professional Summary</h2>
+                <p>{personalInfo.summary}</p>
+              </div>
+            )}
+
+            {/* Work Experience */}
+            {experience.length > 0 && (
+              <div className="mb-6">
+                <h2 className="mb-3 text-xl font-bold">Work Experience</h2>
+                <div className="space-y-4">
+                  {experience.map((exp: any) => (
+                    <div
+                      key={exp.id}
+                      className="border-b pb-4 last:border-0 last:pb-0"
+                    >
+                      <div className="flex justify-between">
+                        <h3 className="font-bold">
+                          {exp.title || "Position Title"}
+                        </h3>
+                        <div className="text-sm text-muted-foreground">
+                          {exp.startDate} - {exp.endDate || "Present"}
+                        </div>
+                      </div>
+                      <div className="flex justify-between">
+                        <p className="text-muted-foreground">
+                          {exp.company || "Company Name"}
+                        </p>
+                        {exp.location && (
+                          <p className="text-sm">{exp.location}</p>
+                        )}
+                      </div>
+                      {exp.description && (
+                        <p className="mt-2 text-sm">{exp.description}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Education */}
+            {education.length > 0 && (
+              <div className="mb-6">
+                <h2 className="mb-3 text-xl font-bold">Education</h2>
+                <div className="space-y-4">
+                  {education.map((edu: any) => (
+                    <div
+                      key={edu.id}
+                      className="border-b pb-4 last:border-0 last:pb-0"
+                    >
+                      <div className="flex justify-between">
+                        <h3 className="font-bold">{edu.degree || "Degree"}</h3>
+                        <div className="text-sm text-muted-foreground">
+                          {edu.startDate} - {edu.endDate || "Present"}
+                        </div>
+                      </div>
+                      <p className="text-muted-foreground">
+                        {edu.institution || "Institution Name"}
+                      </p>
+                      {edu.description && (
+                        <p className="mt-2 text-sm">{edu.description}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Skills */}
+            {skills.length > 0 && (
+              <div>
+                <h2 className="mb-3 text-xl font-bold">Skills</h2>
+                <div className="flex flex-wrap gap-2">
+                  {skills.map((skill: any) => (
+                    <Badge
+                      key={skill.id}
+                      variant="outline"
+                      className="flex items-center gap-1"
+                    >
+                      {skill.name}
+                      {skill.level && (
+                        <span className="ml-1 rounded-full bg-muted px-1.5 py-0.5 text-xs">
+                          {skill.level.charAt(0).toUpperCase() +
+                            skill.level.slice(1)}
+                        </span>
+                      )}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
 export function ResumeBuilder() {
-  const [activeTab, setActiveTab] = useState("content");
-  const [selectedTemplate, setSelectedTemplate] = useState("modern");
-  const [resumeData, setResumeData] = useState(initialResumeData);
+  const [activeTab, setActiveTab] = useState<string>("content");
+  const [selectedTemplate, setSelectedTemplate] = useState<string>("modern");
+  const [resumeData, setResumeData] = useState<any>(initialResumeData);
+  const resumeRef = useRef<HTMLDivElement>(null);
 
-  const { toPDF, targetRef } = usePDF({
-    filename: `${resumeData.personalInfo.fullName || "resume"}.pdf`,
-    page: { margin: 20 },
-  });
-
-  const createSectionHandler = <
-    T extends
-      | "education"
-      | "experience"
-      | "skills"
-      | "projects"
-      | "certifications"
-  >(
-    section: T
-  ) => ({
-    add: () =>
-      setResumeData((prev) => ({
-        ...prev,
-        [section]: [
-          ...prev[section],
-          {
-            id: `${section}${prev[section].length + 1}`,
-            ...getSectionDefaults(section),
-          },
-        ],
-      })),
-    remove: (id: string) =>
-      setResumeData((prev) => ({
-        ...prev,
-        [section]: prev[section].filter((item: any) => item.id !== id),
-      })),
-    change: (id: string, field: string, value: any) =>
-      setResumeData((prev) => ({
-        ...prev,
-        [section]: prev[section].map((item: any) =>
-          item.id === id ? { ...item, [field]: value } : item
-        ),
-      })),
-  });
-
-  const education = createSectionHandler("education");
-  const experience = createSectionHandler("experience");
-  const skills = createSectionHandler("skills");
-  const projects = createSectionHandler("projects");
-  const certifications = createSectionHandler("certifications");
+  // Load saved resume data on component mount
+  useEffect(() => {
+    const savedResumeData = localStorage.getItem("savedResumeData");
+    if (savedResumeData) {
+      try {
+        const parsedData = JSON.parse(savedResumeData);
+        setResumeData(parsedData);
+      } catch (error) {
+        console.error("Error loading saved resume:", error);
+      }
+    }
+  }, []);
 
   const handlePersonalInfo = (field: string, value: string) => {
-    setResumeData((prev) => ({
-      ...prev,
-      personalInfo: { ...prev.personalInfo, [field]: value },
-    }));
+    setResumeData({
+      ...resumeData,
+      personalInfo: {
+        ...resumeData.personalInfo,
+        [field]: value,
+      },
+    });
   };
 
-  const handleSummary = (value: string) => {
-    setResumeData((prev) => ({ ...prev, summary: value }));
+  const addEducation = () => {
+    const newId = `edu${resumeData.education.length + 1}`;
+    setResumeData({
+      ...resumeData,
+      education: [
+        ...resumeData.education,
+        {
+          id: newId,
+          institution: "",
+          degree: "",
+          startDate: "",
+          endDate: "",
+          description: "",
+          current: false,
+        },
+      ],
+    });
   };
 
-  const handleSaveResume = () =>
-    toast.message("Resume Saved", {
-      description: "Your resume has been saved successfully.",
+  const updateEducation = (id: string, field: string, value: any) => {
+    setResumeData({
+      ...resumeData,
+      education: resumeData.education.map((edu: any) =>
+        edu.id === id ? { ...edu, [field]: value } : edu
+      ),
     });
+  };
 
-  const handleDownloadResume = () => {
-    toPDF();
-    toast.message("Resume Downloaded", {
-      description: "Your resume has been downloaded as a PDF.",
+  const removeEducation = (id: string) => {
+    setResumeData({
+      ...resumeData,
+      education: resumeData.education.filter((edu: any) => edu.id !== id),
     });
+  };
+
+  const addExperience = () => {
+    const newId = `exp${resumeData.experience.length + 1}`;
+    setResumeData({
+      ...resumeData,
+      experience: [
+        ...resumeData.experience,
+        {
+          id: newId,
+          title: "",
+          company: "",
+          location: "",
+          startDate: "",
+          endDate: "",
+          description: "",
+          current: false,
+        },
+      ],
+    });
+  };
+
+  const updateExperience = (id: string, field: string, value: any) => {
+    setResumeData({
+      ...resumeData,
+      experience: resumeData.experience.map((exp: any) =>
+        exp.id === id ? { ...exp, [field]: value } : exp
+      ),
+    });
+  };
+
+  const removeExperience = (id: string) => {
+    setResumeData({
+      ...resumeData,
+      experience: resumeData.experience.filter((exp: any) => exp.id !== id),
+    });
+  };
+
+  const addSkill = () => {
+    const newId = `skills${resumeData.skills.length + 1}`;
+    setResumeData({
+      ...resumeData,
+      skills: [
+        ...resumeData.skills,
+        {
+          id: newId,
+          name: "",
+          level: "intermediate",
+        },
+      ],
+    });
+  };
+
+  const updateSkill = (id: string, field: string, value: string) => {
+    setResumeData({
+      ...resumeData,
+      skills: resumeData.skills.map((skill: any) =>
+        skill.id === id ? { ...skill, [field]: value } : skill
+      ),
+    });
+  };
+
+  const removeSkill = (id: string) => {
+    setResumeData({
+      ...resumeData,
+      skills: resumeData.skills.filter((skill: any) => skill.id !== id),
+    });
+  };
+
+  const handleTemplateChange = (templateId: string) => {
+    setResumeData({
+      ...resumeData,
+      templateId,
+    });
+  };
+
+  const generatePDF = async () => {
+    if (!resumeRef.current) return;
+
+    try {
+      toast.loading("Generating PDF...");
+
+      const dataUrl = await toPng(resumeRef.current, { quality: 0.95 });
+
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      });
+
+      const imgProps = pdf.getImageProperties(dataUrl);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+      pdf.addImage(dataUrl, "PNG", 0, 0, pdfWidth, pdfHeight);
+
+      pdf.save(`${resumeData.personalInfo.name || "resume"}.pdf`);
+
+      toast.dismiss();
+      toast.message("PDF Generated", {
+        description: "Your resume has been generated and downloaded.",
+      });
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast.dismiss();
+      toast.error("Failed to generate PDF. Please try again.");
+    }
+  };
+
+  const handleSaveResume = () => {
+    try {
+      localStorage.setItem("savedResumeData", JSON.stringify(resumeData));
+      toast.message("Resume Saved", {
+        description: "Your resume has been saved successfully.",
+      });
+    } catch (error) {
+      console.error("Error saving resume:", error);
+      toast.error("Failed to save resume. Please try again.");
+    }
+  };
+
+  const handleClearResume = () => {
+    setResumeData(initialResumeData);
+    toast.message("Resume Cleared", {
+      description: "Your resume has been cleared.",
+    });
+  };
+
+  const validateResumeBeforeDownload = () => {
+    const errors = validateResumeData(resumeData);
+
+    if (errors.length) {
+      toast.error(`Please fix the following issues before downloading:`, {
+        description: (
+          <ul className="list-disc pl-5 mt-2">
+            {errors.map((error, index) => (
+              <li key={index} className="text-sm">
+                {error}
+              </li>
+            ))}
+          </ul>
+        ),
+      });
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleDownload = () => {
+    if (validateResumeBeforeDownload()) {
+      generatePDF();
+    }
+  };
+
+  const sections = {
+    personalInfo: (
+      <PersonalInfoSection
+        personalInfo={resumeData.personalInfo}
+        onChange={handlePersonalInfo}
+      />
+    ),
+    education: (
+      <div className="space-y-6">
+        {resumeData.education.map((item: any) => (
+          <EducationItem
+            key={item.id}
+            item={item}
+            onChange={updateEducation}
+            onRemove={removeEducation}
+          />
+        ))}
+        <Button onClick={addEducation}>
+          <Plus className="mr-2 h-4 w-4" />
+          Add Education
+        </Button>
+      </div>
+    ),
+    experience: (
+      <div className="space-y-6">
+        {resumeData.experience.map((item: any) => (
+          <ExperienceItem
+            key={item.id}
+            item={item}
+            onChange={updateExperience}
+            onRemove={removeExperience}
+          />
+        ))}
+        <Button onClick={addExperience}>
+          <Plus className="mr-2 h-4 w-4" />
+          Add Experience
+        </Button>
+      </div>
+    ),
+    skills: (
+      <SkillsSection
+        skills={resumeData.skills}
+        onAdd={addSkill}
+        onChange={updateSkill}
+        onRemove={removeSkill}
+      />
+    ),
   };
 
   return (
-    <div className="space-y-6">
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="content">Resume Content</TabsTrigger>
-          <TabsTrigger value="template">Choose Template</TabsTrigger>
-          <TabsTrigger value="preview">Preview & Download</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="content" className="space-y-6">
-          <PersonalInfoSection
-            data={resumeData.personalInfo}
-            onChange={handlePersonalInfo}
-          />
-          <SummarySection
-            summary={resumeData.summary}
-            onChange={handleSummary}
-          />
-          <DynamicSection
-            title="Education"
-            description="Add your educational background"
-            items={resumeData.education}
-            onAdd={education.add}
-            onRemove={education.remove}
-            renderItem={(edu: any) => (
-              <EducationItem
-                item={edu}
-                onChange={education.change}
-                onRemove={education.remove}
-              />
-            )}
-          />
-          <DynamicSection
-            title="Work Experience"
-            description="Add your work experience and internships"
-            items={resumeData.experience}
-            onAdd={experience.add}
-            onRemove={experience.remove}
-            renderItem={(exp: any) => (
-              <ExperienceItem
-                item={exp}
-                onChange={experience.change}
-                onRemove={experience.remove}
-              />
-            )}
-          />
-          <div className="grid gap-6 md:grid-cols-2">
-            <SkillsSection
-              skills={resumeData.skills}
-              onAdd={skills.add}
-              onChange={skills.change}
-              onRemove={skills.remove}
-            />
-            <ProjectsSection
-              projects={resumeData.projects}
-              onAdd={projects.add}
-              onChange={projects.change}
-              onRemove={projects.remove}
-            />
-          </div>
-          <DynamicSection
-            title="Certifications"
-            description="Add your certifications and licenses"
-            items={resumeData.certifications}
-            onAdd={certifications.add}
-            onRemove={certifications.remove}
-            renderItem={(cert: any) => (
-              <CertificationItem
-                item={cert}
-                onChange={certifications.change}
-                onRemove={certifications.remove}
-              />
-            )}
-          />
-          <div className="flex justify-end space-x-2">
+    <div className="container mx-auto px-4 py-8">
+      <PageHeader
+        heading="Resume Builder"
+        subheading="Create a professional resume to showcase your skills and experience"
+      />
+      <Tabs
+        defaultValue="content"
+        value={activeTab}
+        onValueChange={setActiveTab}
+      >
+        <div className="flex justify-between">
+          <TabsList>
+            <TabsTrigger value="content">Content</TabsTrigger>
+            <TabsTrigger value="templates">Templates</TabsTrigger>
+            <TabsTrigger value="preview">Preview</TabsTrigger>
+          </TabsList>
+          <div className="flex space-x-2">
             <Button variant="outline" onClick={handleSaveResume}>
               <Save className="mr-2 h-4 w-4" />
               Save Resume
             </Button>
-            <Button onClick={() => setActiveTab("template")}>
-              Continue to Templates
-              <ChevronRight className="ml-2 h-4 w-4" />
-            </Button>
           </div>
-        </TabsContent>
-
-        <TabsContent value="template" className="space-y-6">
-          <ResumeTemplateSelector
-            templates={resumeTemplates}
-            selectedTemplate={selectedTemplate}
-            onSelect={setSelectedTemplate}
-            onBack={() => setActiveTab("content")}
-            onContinue={() => setActiveTab("preview")}
-          />
-        </TabsContent>
-
-        <TabsContent value="preview" className="space-y-6">
-          <ResumePreview
-            data={resumeData}
-            onBack={() => setActiveTab("template")}
-            onSave={handleSaveResume}
-            onDownload={handleDownloadResume}
-            targetRef={targetRef}
-          />
-        </TabsContent>
+        </div>
+        <div className="mt-4">
+          <TabsContent value="content" className="space-y-6">
+            <PersonalInfoSection
+              personalInfo={resumeData.personalInfo}
+              onChange={handlePersonalInfo}
+            />
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="education">
+                <AccordionTrigger>Education</AccordionTrigger>
+                <AccordionContent>
+                  <div className="mt-4 space-y-4">
+                    {resumeData.education.map((item: any) => (
+                      <EducationItem
+                        key={item.id}
+                        item={item}
+                        onChange={updateEducation}
+                        onRemove={removeEducation}
+                      />
+                    ))}
+                    <Button onClick={addEducation}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add Education
+                    </Button>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+              <AccordionItem value="experience">
+                <AccordionTrigger>Experience</AccordionTrigger>
+                <AccordionContent>
+                  <div className="mt-4 space-y-4">
+                    {resumeData.experience.map((item: any) => (
+                      <ExperienceItem
+                        key={item.id}
+                        item={item}
+                        onChange={updateExperience}
+                        onRemove={removeExperience}
+                      />
+                    ))}
+                    <Button onClick={addExperience}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add Experience
+                    </Button>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+              <AccordionItem value="skills">
+                <AccordionTrigger>Skills</AccordionTrigger>
+                <AccordionContent>
+                  <div className="mt-4">
+                    <SkillsSection
+                      skills={resumeData.skills}
+                      onAdd={addSkill}
+                      onChange={updateSkill}
+                      onRemove={removeSkill}
+                    />
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </TabsContent>
+          <TabsContent value="templates">
+            <TemplateSelection
+              selected={resumeData.templateId}
+              onSelect={handleTemplateChange}
+            />
+          </TabsContent>
+          <TabsContent value="preview">
+            <ResumePreview
+              data={resumeData}
+              onBack={() => setActiveTab("content")}
+              onSave={handleSaveResume}
+              onDownload={handleDownload}
+              targetRef={resumeRef}
+              onClear={handleClearResume}
+            />
+          </TabsContent>
+        </div>
       </Tabs>
     </div>
   );

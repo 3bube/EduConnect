@@ -26,6 +26,8 @@ import {
   Menu,
   Settings,
   User,
+  Award,
+  FileText,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -78,6 +80,20 @@ export function MainNav() {
     //   active: isActive("/assignments"),
     //   roles: ["student", "tutor", "parent", "admin"],
     // },
+    {
+      title: "Certificates",
+      href: "/certificates",
+      icon: <Award className="mr-2 h-4 w-4" />,
+      active: isActive("/certificates"),
+      roles: ["student", "admin"],
+    },
+    {
+      title: "Study Materials",
+      href: "/study-materials",
+      icon: <FileText className="mr-2 h-4 w-4" />,
+      active: isActive("/study-materials"),
+      roles: ["student", "tutor", "admin"],
+    },
     {
       title: "Career",
       href: "/career",
@@ -159,7 +175,11 @@ export function MainNav() {
             </SheetContent>
           </Sheet>
 
-          <DropdownMenu>
+          <Avatar className="h-8 w-8">
+            <AvatarImage src={user.avatar} alt={user.name} />
+            <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+          </Avatar>
+          {/* <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                 <Avatar className="h-8 w-8">
@@ -198,7 +218,7 @@ export function MainNav() {
                 <span>Log out</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
-          </DropdownMenu>
+          </DropdownMenu> */}
         </div>
       </div>
     </header>

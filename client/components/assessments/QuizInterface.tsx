@@ -25,9 +25,10 @@ import {
   Loader2,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { getQuestion } from "@/api/assessment";
-import { useQuery } from "@tanstack/react-query";
+import { getQuestion, startAssessment } from "@/api/assessment";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { submitAssessment } from "@/api/assessment";
+import { toast } from "sonner";
 
 // Define interfaces for the question data
 interface Question {
@@ -56,6 +57,34 @@ export function QuizInterface({ assessmentId }: { assessmentId: string }) {
   const [timeRemaining, setTimeRemaining] = useState(30 * 60); // Default 30 minutes, will be updated
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmSubmit, setShowConfirmSubmit] = useState(false);
+  const [isStarted, setIsStarted] = useState(false);
+
+  // Start assessment mutation
+  const { mutate: startAssessmentMutation, isLoading: isStarting } =
+    useMutation({
+      mutationFn: () => startAssessment(assessmentId),
+      onSuccess: (data) => {
+        console.log("Assessment started:", data);
+        setIsStarted(true);
+
+        if (data.userStatus === "completed") {
+          // User has already completed this assessment, redirect to results
+          toast.info("You've already completed this assessment");
+          router.push(`/assessments/${assessmentId}/results`);
+        }
+      },
+      onError: (error) => {
+        console.error("Failed to start assessment:", error);
+        toast.error("Failed to start the assessment");
+      },
+    });
+
+  // Start the assessment when component loads
+  useEffect(() => {
+    if (assessmentId && !isStarted) {
+      startAssessmentMutation();
+    }
+  }, [assessmentId, isStarted, startAssessmentMutation]);
 
   // Submit assessment - defined early to avoid the "used before declaration" error
   const handleSubmit = useCallback(async () => {
@@ -72,7 +101,7 @@ export function QuizInterface({ assessmentId }: { assessmentId: string }) {
       router.push(`/assessments/${assessmentId}/results.tsx`);
     } catch (error) {
       console.error("Failed to submit assessment:", error);
-      // Handle the error appropriately
+      toast.error("Failed to submit assessment");
     } finally {
       setIsSubmitting(false);
     }
@@ -204,12 +233,14 @@ export function QuizInterface({ assessmentId }: { assessmentId: string }) {
   };
 
   // If questions are still loading or there's an error, show appropriate UI
-  if (isLoadingQuestions) {
+  if (isLoadingQuestions || isStarting) {
     return (
       <div className="container mx-auto flex h-[60vh] max-w-4xl items-center justify-center px-4 py-8 sm:px-6">
         <div className="text-center">
           <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
-          <p className="mt-2 text-lg">Loading assessment...</p>
+          <p className="mt-2 text-lg">
+            {isStarting ? "Starting assessment..." : "Loading assessment..."}
+          </p>
         </div>
       </div>
     );

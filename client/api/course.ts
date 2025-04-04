@@ -12,16 +12,20 @@ export interface Course {
   _id: string;
   title: string;
   description: string;
+  longDescription?: string;
   category: string;
   level: string;
   price: number;
   duration: string;
   image: string;
   tags: string[];
+  requirements?: string[];
+  objectives?: string[];
   instructor: {
     id: string;
     name: string;
     avatar: string;
+    title?: string;
   };
   rating?: number;
   numberOfStudents?: number;
@@ -29,9 +33,13 @@ export interface Course {
   lessons?: {
     id: string;
     title: string;
-    content: string;
+    content:
+      | string
+      | { description: string; videoUrl?: string; problems?: any[] };
     duration: string;
     order: number;
+    completed?: boolean;
+    type?: string;
   }[];
   assessments?: {
     id: string;
@@ -81,13 +89,21 @@ export const getCourseById = async (courseId: string): Promise<Course> => {
   }
 };
 
-export const enrollCourse = async (courseId: string): Promise<Course> => {
+export const enrollCourse = async (
+  courseId: string
+): Promise<{ message: string; user?: any }> => {
   try {
-    const response = await requestHandler<Course>(
-      newRequest.post(`/courses/${courseId}/enroll`)
-    );
-    return response;
+    console.log(`Making API request to enroll in course: ${courseId}`);
+
+    // Make the request to the backend
+    const response = await newRequest.post(`/courses/${courseId}/enroll`);
+
+    console.log("Received response from enroll course API:", response.data);
+
+    // Return the data from the response
+    return response.data;
   } catch (error) {
+    console.error("Error in enrollCourse API call:", error);
     throw error instanceof Error
       ? error
       : new Error("Failed to enroll in course");
@@ -99,11 +115,24 @@ export const markLessonComplete = async ({
   lessonId,
 }: MarkLessonCompleteParams): Promise<Course> => {
   try {
-    const response = await requestHandler<Course>(
-      newRequest.post(`/courses/${courseId}/lessons/${lessonId}/complete`)
+    console.log(
+      `Making API request to mark lesson complete - courseId: ${courseId}, lessonId: ${lessonId}`
     );
-    return response;
+
+    // Make the request to the backend
+    const response = await newRequest.post(
+      `/courses/${courseId}/lessons/${lessonId}/complete`
+    );
+
+    console.log(
+      "Received response from mark lesson complete API:",
+      response.data
+    );
+
+    // Return the data from the response
+    return response.data;
   } catch (error) {
+    console.error("Error in markLessonComplete API call:", error);
     throw error instanceof Error
       ? error
       : new Error("Failed to mark lesson as complete");
@@ -136,5 +165,30 @@ export const createCourse = async (course: Course): Promise<Course> => {
     return response;
   } catch (error) {
     throw error instanceof Error ? error : new Error("Failed to create course");
+  }
+};
+
+export const downloadResource = async (
+  courseId: string,
+  resourceId: string
+): Promise<{ url: string }> => {
+  try {
+    console.log(
+      `Requesting download for resource: ${resourceId} in course: ${courseId}`
+    );
+
+    // Make the request to get the download URL
+    const response = await newRequest.get(
+      `/courses/${courseId}/resources/${resourceId}`
+    );
+
+    console.log("Received resource data:", response.data);
+
+    return response.data;
+  } catch (error) {
+    console.error("Error getting resource download URL:", error);
+    throw error instanceof Error
+      ? error
+      : new Error("Failed to download resource");
   }
 };

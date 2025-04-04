@@ -238,7 +238,7 @@ function CourseCard({ course }: { course: Course }) {
       </CardHeader>
       <CardContent>
         <div className="flex items-center justify-between">
-          <span className="text-lg font-bold">${course.price}</span>
+          {/* <span className="text-lg font-bold">${course.price}</span> */}
           <Button asChild>
             <a href={`/courses/${course._id}`}>View Course</a>
           </Button>

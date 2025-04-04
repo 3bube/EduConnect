@@ -24,22 +24,32 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { getCourseById } from "@/api/course";
+import { getCourseById, downloadResource } from "@/api/course";
 import { useQuery } from "@tanstack/react-query";
 import type { Course } from "@/api/course";
 import { enrollCourse } from "@/api/course";
 import { useAuth } from "@/context/AuthContext";
 import { useEffect } from "react";
+import { toast } from "sonner";
 
 interface CourseDetailsProps {
   courseId: string;
+}
+
+// Resource type definition
+interface CourseResource {
+  id: string;
+  title: string;
+  type: string;
+  size?: string;
+  url?: string;
 }
 
 export function CourseDetails({ courseId }: CourseDetailsProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("overview");
   const [isEnrolled, setIsEnrolled] = useState(false);
-  const { user } = useAuth();
+  const { user, updateUserData } = useAuth();
 
   const {
     data: course,
@@ -63,9 +73,19 @@ export function CourseDetails({ courseId }: CourseDetailsProps) {
   useEffect(() => {
     if (user) {
       const enrolledCourses = user.enrolledCourses || [];
-      const isEnrolled = enrolledCourses.some(
-        (courseId) => courseId === courseId
-      );
+      console.log("User enrolled courses:", JSON.stringify(enrolledCourses));
+      console.log("Looking for course ID:", courseId);
+
+      // Check if the user is enrolled in this course
+      const isEnrolled = enrolledCourses.some((course) => {
+        // Handle both cases where _id could be a string or an object with _id property
+        const courseId1 = typeof course === "string" ? course : course._id;
+        const match = courseId1 === courseId;
+        console.log(`Comparing ${courseId1} with ${courseId}: ${match}`);
+        return match;
+      });
+
+      console.log("Final isEnrolled value:", isEnrolled);
       setIsEnrolled(isEnrolled);
     }
   }, [user, courseId]);
@@ -85,23 +105,48 @@ export function CourseDetails({ courseId }: CourseDetailsProps) {
   // Calculate total lessons and completed lessons
   const totalLessons =
     course.modules?.reduce(
-      (total, module) => total + (module.lessons?.length || 0),
+      (total: number, module: any) => total + (module.lessons?.length || 0),
       0
     ) || 0;
 
   const completedLessons =
     course.modules?.reduce(
-      (total, module) =>
+      (total: number, module: any) =>
         total +
-        (module.lessons?.filter((lesson) => lesson.completed)?.length || 0),
+        (module.lessons?.filter((lesson: any) => lesson.completed)?.length ||
+          0),
       0
     ) || 0;
 
+  // const isComplete = (completedLessons / totalLessons) * 100 === 100
+
   const handleEnroll = async () => {
     try {
-      await enrollCourse(courseId);
-      setIsEnrolled(true);
+      const response = await enrollCourse(courseId);
+      console.log("Enrollment response:", response);
+
+      // Update user info with the new enrolled course
+      if (user && response.user) {
+        // Use the returned updated user data or update manually
+        if (response.user) {
+          updateUserData(response.user);
+        } else {
+          const updatedEnrolledCourses = [
+            ...(user.enrolledCourses || []),
+            { _id: courseId },
+          ];
+          const updatedUser = {
+            ...user,
+            enrolledCourses: updatedEnrolledCourses,
+          };
+          updateUserData(updatedUser);
+        }
+
+        // Force re-render by setting isEnrolled to true
+        setIsEnrolled(true);
+      }
     } catch (err) {
+      console.error("Failed to enroll in course:", err);
       throw err instanceof Error
         ? err
         : new Error("Failed to enroll in course");
@@ -110,6 +155,33 @@ export function CourseDetails({ courseId }: CourseDetailsProps) {
 
   const handleContinueLearning = () => {
     router.push(`/courses/${courseId}/learn`);
+  };
+
+  const handleDownloadResource = async (resourceId: string) => {
+    if (!isEnrolled) return;
+
+    try {
+      const response = await downloadResource(courseId, resourceId);
+
+      if (response && response.url) {
+        // Create a temporary anchor element to trigger the download
+        const link = document.createElement("a");
+        link.href = response.url;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.download = ""; // This will use the filename from the URL
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        toast.success("Your resource download has started");
+      } else {
+        throw new Error("No download URL available");
+      }
+    } catch (error) {
+      console.error("Failed to download resource:", error);
+      toast.error("There was a problem downloading this resource");
+    }
   };
 
   return (
@@ -272,12 +344,13 @@ export function CourseDetails({ courseId }: CourseDetailsProps) {
                 </p>
 
                 <ul className="space-y-2">
-                  {course.resources?.map((resource) => (
+                  {course.resources?.map((resource: CourseResource) => (
                     <li key={resource.id}>
                       <Button
                         variant="outline"
                         className="w-full justify-start"
                         disabled={!isEnrolled}
+                        onClick={() => handleDownloadResource(resource.id)}
                       >
                         <Download className="mr-2 h-4 w-4" />
                         {resource.title}
@@ -304,7 +377,7 @@ export function CourseDetails({ courseId }: CourseDetailsProps) {
             <div className="sticky top-20">
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-2xl">${course.price}</CardTitle>
+                  <CardTitle className="text-2xl">Enroll now</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {isEnrolled ? (

@@ -1,14 +1,14 @@
 export const requestHandler = async <T>(
   apiCall: Promise<{ data: T }>
-): Promise<T | Error> => {
+): Promise<T> => {
   try {
     const { data } = await apiCall;
-
     return data;
   } catch (error) {
+    console.error("API request error:", error);
     if (error instanceof Error) {
-      return error;
+      throw error;
     }
-    return new Error("An unknown error occurred");
+    throw new Error("An unknown error occurred");
   }
 };

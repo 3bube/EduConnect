@@ -2,6 +2,7 @@ import { requestHandler } from "./handler";
 import newRequest from "./newRequest";
 
 export interface AssessmentQuestion {
+  _id: string;
   id: string;
   type: "multiple-choice" | "multiple-select" | "true-false";
   text: string;
@@ -26,13 +27,30 @@ export interface Assessment {
   questions: AssessmentQuestion[];
 }
 
+export interface UserAssessmentStatus {
+  userStatus: "not_started" | "in_progress" | "completed";
+  message: string;
+  assessment: {
+    _id: string;
+    title: string;
+    description: string;
+    questions: AssessmentQuestion[];
+    timeLimit: number;
+    dueDate: string;
+    type: string;
+    [key: string]: any; // For any other properties
+  };
+}
+
 export const getAssessment = requestHandler(newRequest.get("/assessments"));
 
 export const getAssessmentById = (id: string) =>
   requestHandler(newRequest.get(`/assessments/${id}`));
 
 export const startAssessment = (id: string) =>
-  requestHandler(newRequest.post(`/assessments/${id}/start`));
+  requestHandler<UserAssessmentStatus>(
+    newRequest.post(`/assessments/${id}/start`)
+  );
 
 export const submitAssessment = (
   id: string,

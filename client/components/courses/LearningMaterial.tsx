@@ -11,8 +11,12 @@ import {
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { getCourseById, markLessonComplete } from "@/api/course";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  getCourseById,
+  markLessonComplete,
+  downloadResource,
+} from "@/api/course";
 import type { Course, MarkLessonCompleteParams } from "@/api/course";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -39,6 +43,7 @@ import {
   ThumbsUp,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { toast } from "sonner";
 
 export function LearningMaterial({ courseId }: { courseId: string }) {
   const router = useRouter();
@@ -60,12 +65,23 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
     staleTime: 60 * 60 * 1000, // 1 hour
   });
 
-  const { mutate: markLessonCompleteMutation } = useMutation<
-    Course,
-    Error,
-    MarkLessonCompleteParams
-  >({
-    mutationFn: markLessonComplete,
+  const queryClient = useQueryClient();
+
+  const { mutate: markLessonCompleteMutation } = useMutation({
+    mutationFn: (params: MarkLessonCompleteParams) =>
+      markLessonComplete(params),
+    onSuccess: (data, variables) => {
+      console.log("Lesson marked as complete successfully:", data);
+      // Invalidate and refetch course data
+      queryClient.invalidateQueries({
+        queryKey: ["course", variables.courseId],
+      });
+      // Move to next lesson on success
+      handleNextLesson();
+    },
+    onError: (error) => {
+      console.error("Error marking lesson as complete:", error);
+    },
   });
 
   if (isLoading) {
@@ -130,27 +146,18 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
     }
   };
 
-  const markAsCompleted = async () => {
+  const markAsCompleted = () => {
     if (!currentLesson?.id) return;
 
-    try {
-      await markLessonCompleteMutation(
-        {
-          courseId,
-          lessonId: currentLesson.id,
-        },
-        {
-          onSuccess: () => {
-            handleNextLesson();
-          },
-          onError: (error) => {
-            console.error("Failed to mark lesson as complete:", error);
-          },
-        }
-      );
-    } catch (error) {
-      console.error("Error marking lesson as complete:", error);
-    }
+    console.log("Marking lesson as complete:", {
+      courseId,
+      lessonId: currentLesson.id,
+    });
+
+    markLessonCompleteMutation({
+      courseId,
+      lessonId: currentLesson.id,
+    });
   };
 
   const formatDate = (dateString: string) => {
@@ -162,6 +169,35 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
       minute: "2-digit",
     };
     return new Date(dateString).toLocaleDateString("en-US", options);
+  };
+
+  const handleDownloadResource = async (resourceId: string) => {
+    try {
+      console.log(
+        `Downloading resource: ${resourceId} from course: ${courseId}`
+      );
+      const response = await downloadResource(courseId, resourceId);
+
+      if (response && response.url) {
+        // Create a temporary anchor element to trigger the download
+        const link = document.createElement("a");
+        link.href = response.url;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.download = ""; // This will use the filename from the URL
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        toast.success("Resource download started");
+      } else {
+        console.error("No download URL available");
+        toast.error("Download link not available");
+      }
+    } catch (error) {
+      console.error("Failed to download resource:", error);
+      toast.error("Failed to download resource");
+    }
   };
 
   return (
@@ -202,7 +238,7 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
                   <span>Your progress</span>
                   <span className="font-medium">{course.progress}%</span>
                 </div>
-                <Progress value={course.progress} className="h-2" />
+                <Progress value={Number(course.progress)} className="h-2" />
                 <p className="mt-2 text-xs text-muted-foreground">
                   {completedLessons} of {totalLessons} lessons completed
                 </p>
@@ -520,6 +556,10 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
                           <Button
                             variant="outline"
                             className="w-full justify-between"
+                            onClick={() =>
+                              resource.id &&
+                              handleDownloadResource(resource.id.toString())
+                            }
                           >
                             <div className="flex items-center">
                               <FileText className="mr-2 h-4 w-4" />

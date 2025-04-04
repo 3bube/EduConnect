@@ -161,6 +161,45 @@ export function AssessmentList() {
     return diffDays;
   };
 
+  // Function to determine if we should show the "View Results" button
+  const shouldShowResults = (assessment: Assessment) => {
+    // Only show results for completed assessments with a score
+    return (
+      assessment.status === "completed" &&
+      typeof assessment.averageScore === "number" &&
+      assessment.averageScore >= 0
+    );
+  };
+
+  // Function to determine correct action button based on assessment status
+  const getActionButton = (assessment: Assessment) => {
+    if (shouldShowResults(assessment)) {
+      return (
+        <Button variant="outline" asChild className="w-full">
+          <Link href={`/assessments/${assessment._id}/results.tsx`}>
+            <CheckCircle className="mr-2 h-4 w-4" />
+            View Results
+          </Link>
+        </Button>
+      );
+    } else if (assessment.status === "in_progress") {
+      return (
+        <Button asChild className="w-full">
+          <Link href={`/assessments/${assessment._id}`}>
+            <Clock className="mr-2 h-4 w-4" />
+            Continue
+          </Link>
+        </Button>
+      );
+    } else {
+      return (
+        <Button asChild className="w-full">
+          <Link href={`/assessments/${assessment._id}`}>Start Assessment</Link>
+        </Button>
+      );
+    }
+  };
+
   return (
     <div className="container px-4 py-8 sm:px-6 lg:px-8">
       <div className="mb-8 space-y-4">
@@ -291,31 +330,7 @@ export function AssessmentList() {
                         </div>
                       )}
                   </CardContent>
-                  <CardFooter>
-                    {assessment.status === "completed" ? (
-                      <Button variant="outline" asChild className="w-full">
-                        <Link
-                          href={`/assessments/${assessment._id}/results.tsx`}
-                        >
-                          <CheckCircle className="mr-2 h-4 w-4" />
-                          View Results
-                        </Link>
-                      </Button>
-                    ) : assessment.status === "in_progress" ? (
-                      <Button asChild className="w-full">
-                        <Link href={`/assessments/${assessment._id}`}>
-                          <Clock className="mr-2 h-4 w-4" />
-                          Continue
-                        </Link>
-                      </Button>
-                    ) : (
-                      <Button asChild className="w-full">
-                        <Link href={`/assessments/${assessment._id}`}>
-                          Start Assessment
-                        </Link>
-                      </Button>
-                    )}
-                  </CardFooter>
+                  <CardFooter>{getActionButton(assessment)}</CardFooter>
                 </Card>
               ))}
             </div>

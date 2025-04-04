@@ -38,9 +38,6 @@ export interface StudentDashboardData {
   stats: {
     overallCompletion: number;
     coursesEnrolled: number;
-    hoursStudied: number;
-    assignmentsCompleted: number;
-    totalAssignments: number;
   };
 }
 
@@ -78,6 +75,7 @@ export const getStudentDashboard = async (): Promise<StudentDashboardData> => {
 };
 
 export const getEnrolledCourses = async (): Promise<EnrolledCourse[]> => {
+  console.log("Fetching enrolled courses...");
   try {
     const response = await requestHandler<EnrolledCoursesResponse>(
       newRequest.get("/student/courses/enrolled")
@@ -150,9 +148,6 @@ export const getLearningStats = async (): Promise<
       return {
         overallCompletion: 0,
         coursesEnrolled: 0,
-        hoursStudied: 0,
-        assignmentsCompleted: 0,
-        totalAssignments: 0,
       };
     }
     return response.stats;
@@ -161,9 +156,6 @@ export const getLearningStats = async (): Promise<
     return {
       overallCompletion: 0,
       coursesEnrolled: 0,
-      hoursStudied: 0,
-      assignmentsCompleted: 0,
-      totalAssignments: 0,
     };
   }
 };

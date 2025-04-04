@@ -11,88 +11,60 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, Clock, FileText, Play, Star, Users } from "lucide-react";
+import { Play, Star, Users } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { useQuery } from "@tanstack/react-query";
 import {
   getEnrolledCourses,
-  getUpcomingAssignments,
   getRecommendedCourses,
-  getUpcomingClasses,
-  getLearningStats,
   EnrolledCourse,
-  UpcomingAssignment,
-  UpcomingClass,
 } from "@/api/student";
 import { Course } from "@/api/course";
+import { useEffect, useState } from "react";
+import axios from "@/lib/axios";
+import { GenerateProgressButton } from "./GenerateProgressButton";
+
+interface LearningStats {
+  overallCompletion: number;
+  coursesEnrolled: number;
+}
 
 export function StudentDashboard() {
   const { user } = useAuth();
+  const [stats, setStats] = useState<LearningStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const { data: enrolledCourses = [], isLoading: isLoadingCourses } = useQuery<
-    EnrolledCourse[]
-  >({
+  const { data: enrolledCourses = [] } = useQuery<EnrolledCourse[]>({
     queryKey: ["enrolledCourses"],
     queryFn: getEnrolledCourses,
     enabled: !!user?._id,
   });
 
-  const { data: upcomingAssignments = [], isLoading: isLoadingAssignments } =
-    useQuery<UpcomingAssignment[]>({
-      queryKey: ["upcomingAssignments"],
-      queryFn: getUpcomingAssignments,
-      enabled: !!user?._id,
-    });
+  console.log(enrolledCourses);
 
-  const { data: upcomingClasses = [], isLoading: isLoadingClasses } = useQuery<
-    UpcomingClass[]
-  >({
-    queryKey: ["upcomingClasses"],
-    queryFn: getUpcomingClasses,
+  const { data: recommendedCourses = [] } = useQuery<Course[]>({
+    queryKey: ["recommendedCourses"],
+    queryFn: getRecommendedCourses,
     enabled: !!user?._id,
   });
 
-  const { data: recommendedCourses = [], isLoading: isLoadingRecommended } =
-    useQuery<Course[]>({
-      queryKey: ["recommendedCourses"],
-      queryFn: getRecommendedCourses,
-      enabled: !!user?._id,
-    });
-
-  const { data: stats, isLoading: isLoadingStats } = useQuery({
-    queryKey: ["learningStats"],
-    queryFn: getLearningStats,
-    enabled: !!user?._id,
-  });
-
-  const isLoading =
-    isLoadingCourses ||
-    isLoadingAssignments ||
-    isLoadingClasses ||
-    isLoadingRecommended ||
-    isLoadingStats;
-
-  // Format date for display
-  const formatDate = (dateString: string) => {
-    const options: Intl.DateTimeFormatOptions = {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await axios.get("/student/stats");
+        setStats(response.data.stats);
+      } catch (error) {
+        console.error("Failed to fetch learning stats:", error);
+      } finally {
+        setIsLoading(false);
+      }
     };
-    return new Date(dateString).toLocaleDateString("en-US", options);
-  };
 
-  // Calculate days remaining
-  const getDaysRemaining = (dateString: string) => {
-    const dueDate = new Date(dateString);
-    const today = new Date();
-    const diffTime = dueDate.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
-  };
+    if (user) {
+      fetchStats();
+    }
+  }, [user]);
 
   if (isLoading) {
     return (
@@ -120,12 +92,12 @@ export function StudentDashboard() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button asChild>
+          {/* <Button asChild>
             <Link href="/live-classes">
               <Play className="mr-2 h-4 w-4" />
               Join Next Class
             </Link>
-          </Button>
+          </Button> */}
           <Button variant="outline" asChild>
             <Link href="/courses">Continue Learning</Link>
           </Button>
@@ -135,42 +107,44 @@ export function StudentDashboard() {
       {/* Learning Progress */}
       <Card>
         <CardHeader>
-          <CardTitle>Learning Progress</CardTitle>
-          <CardDescription>
-            Your overall progress across all courses
-          </CardDescription>
+          <div className="flex justify-between items-center">
+            <div>
+              <CardTitle>Learning Progress</CardTitle>
+              <CardDescription>
+                Your overall progress across all courses
+              </CardDescription>
+            </div>
+            <GenerateProgressButton />
+          </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Overall Completion</p>
-                <p className="text-2xl font-bold">
-                  {stats?.overallCompletion || 0}%
-                </p>
+            {isLoading ? (
+              <div className="flex justify-center items-center h-32">
+                <p>Loading stats...</p>
               </div>
-              <div>
-                <p className="text-sm font-medium">Courses Enrolled</p>
-                <p className="text-2xl font-bold">
-                  {stats?.coursesEnrolled || 0}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm font-medium">Hours Studied</p>
-                <p className="text-2xl font-bold">{stats?.hoursStudied || 0}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium">Assignments Completed</p>
-                <p className="text-2xl font-bold">
-                  {stats?.assignmentsCompleted || 0}/
-                  {stats?.totalAssignments || 0}
-                </p>
-              </div>
-            </div>
-            <Progress
-              value={stats?.overallCompletion || 0}
-              className="h-2 w-full"
-            />
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">Overall Completion</p>
+                    <p className="text-2xl font-bold">
+                      {stats?.overallCompletion || 0}%
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Courses Enrolled</p>
+                    <p className="text-2xl font-bold">
+                      {stats?.coursesEnrolled || 0}
+                    </p>
+                  </div>
+                </div>
+                <Progress
+                  value={stats?.overallCompletion || 0}
+                  className="h-2 w-full"
+                />
+              </>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -240,114 +214,6 @@ export function StudentDashboard() {
             ))}
           </div>
         )}
-      </div>
-
-      {/* Upcoming Activities */}
-      <div>
-        <h2 className="mb-4 text-2xl font-bold tracking-tight">
-          Upcoming Activities
-        </h2>
-        <Tabs defaultValue="assignments">
-          <TabsList className="mb-4">
-            <TabsTrigger value="assignments">Assignments</TabsTrigger>
-            <TabsTrigger value="classes">Live Classes</TabsTrigger>
-          </TabsList>
-          <TabsContent value="assignments">
-            {upcomingAssignments.length === 0 ? (
-              <Card className="p-8 text-center">
-                <p className="text-muted-foreground">
-                  You don&#39;t have any upcoming assignments.
-                </p>
-              </Card>
-            ) : (
-              <div className="space-y-4">
-                {upcomingAssignments.map((assignment) => (
-                  <Card key={assignment.id}>
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start gap-3">
-                          <FileText className="mt-1 h-5 w-5 text-primary" />
-                          <div>
-                            <h3 className="font-medium">{assignment.title}</h3>
-                            <p className="text-sm text-muted-foreground">
-                              {assignment.courseName}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <Badge
-                            variant={
-                              assignment.status === "completed"
-                                ? "success"
-                                : assignment.status === "overdue"
-                                ? "destructive"
-                                : "outline"
-                            }
-                          >
-                            {assignment.status === "completed"
-                              ? "Completed"
-                              : assignment.status === "overdue"
-                              ? "Overdue"
-                              : `${getDaysRemaining(
-                                  assignment.dueDate
-                                )} days left`}
-                          </Badge>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            Due {formatDate(assignment.dueDate)}
-                          </p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-          <TabsContent value="classes">
-            {upcomingClasses.length === 0 ? (
-              <Card className="p-8 text-center">
-                <p className="text-muted-foreground">
-                  You don&#39;t have any upcoming live classes.
-                </p>
-              </Card>
-            ) : (
-              <div className="space-y-4">
-                {upcomingClasses.map((liveClass) => (
-                  <Card key={liveClass.id}>
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start gap-3">
-                          <Calendar className="mt-1 h-5 w-5 text-primary" />
-                          <div>
-                            <h3 className="font-medium">{liveClass.title}</h3>
-                            <p className="text-sm text-muted-foreground">
-                              {liveClass.courseName}
-                            </p>
-                            <p className="mt-1 text-xs">
-                              <span className="font-medium">Tutor:</span>{" "}
-                              {liveClass.tutor}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            <p className="text-xs">
-                              {formatDate(liveClass.startTime)}
-                            </p>
-                          </div>
-                          <Button size="sm" className="mt-2">
-                            Join Class
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
       </div>
 
       {/* Recommended Courses */}

@@ -4,4 +4,8 @@ export interface User {
   email: string;
   role: "student" | "tutor";
   avatar?: string;
+  accessToken?: string;
+  enrolledCourses?: Array<{
+    _id: string;
+  }>;
 }

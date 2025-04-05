@@ -3,6 +3,7 @@ import { requestHandler } from "./handler";
 
 // Define response types
 export interface AuthResponse {
+  accessToken(arg0: string, accessToken: any): unknown;
   user: {
     id: string;
     name: string;

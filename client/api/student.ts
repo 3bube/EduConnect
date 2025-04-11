@@ -61,6 +61,18 @@ export interface LearningStatsResponse {
   stats: StudentDashboardData["stats"];
 }
 
+export interface CourseProgressResponse {
+  progress: {
+    courseId: string;
+    completedLessonsCount: number;
+    totalLessons: number;
+    progressPercentage: number;
+    timeSpent: number;
+    completedLessons: string[];
+    lastAccessed?: string;
+  };
+}
+
 export const getStudentDashboard = async (): Promise<StudentDashboardData> => {
   try {
     const response = await requestHandler<StudentDashboardData>(
@@ -156,6 +168,42 @@ export const getLearningStats = async (): Promise<
     return {
       overallCompletion: 0,
       coursesEnrolled: 0,
+    };
+  }
+};
+
+/**
+ * Get the progress for a specific course
+ * @param courseId The ID of the course
+ * @returns Course progress information
+ */
+export const getCourseProgress = async (courseId: string): Promise<CourseProgressResponse["progress"]> => {
+  try {
+    const response = await requestHandler<CourseProgressResponse>(
+      newRequest.get(`/student/courses/${courseId}/progress`)
+    );
+    
+    if (!response || !response.progress) {
+      return {
+        courseId,
+        completedLessonsCount: 0,
+        totalLessons: 0,
+        progressPercentage: 0,
+        timeSpent: 0,
+        completedLessons: [],
+      };
+    }
+    
+    return response.progress;
+  } catch (error) {
+    console.error(`Failed to fetch progress for course ${courseId}:`, error);
+    return {
+      courseId,
+      completedLessonsCount: 0,
+      totalLessons: 0,
+      progressPercentage: 0,
+      timeSpent: 0,
+      completedLessons: [],
     };
   }
 };

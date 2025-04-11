@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,94 +34,11 @@ import {
   Video,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import liveClassApi, { ILiveClass } from "@/api/live-class.api";
+import { useToast } from "@/components/ui/use-toast";
+import { Skeleton } from "@/components/ui/skeleton";
 
-// Mock data
-const liveClasses = [
-  {
-    id: "class-1",
-    title: "Algebra Fundamentals",
-    course: "Introduction to Mathematics",
-    description: "Learn the basics of algebraic expressions and equations",
-    startTime: "2023-09-14T10:00:00",
-    endTime: "2023-09-14T11:30:00",
-    tutor: {
-      name: "Dr. Smith",
-      avatar: "/placeholder.svg?height=40&width=40",
-    },
-    participants: 24,
-    maxParticipants: 30,
-    status: "upcoming", // upcoming, live, completed
-    category: "Mathematics",
-  },
-  {
-    id: "class-2",
-    title: "Shakespeare's Sonnets Analysis",
-    course: "Advanced English Literature",
-    description: "Explore the themes and structure of Shakespeare's sonnets",
-    startTime: "2023-09-15T14:00:00",
-    endTime: "2023-09-15T15:30:00",
-    tutor: {
-      name: "Prof. Johnson",
-      avatar: "/placeholder.svg?height=40&width=40",
-    },
-    participants: 18,
-    maxParticipants: 25,
-    status: "upcoming",
-    category: "Literature",
-  },
-  {
-    id: "class-3",
-    title: "Newton's Laws of Motion",
-    course: "Physics 101",
-    description: "Understanding the fundamental laws that govern motion",
-    startTime: "2023-09-13T09:00:00",
-    endTime: "2023-09-13T10:30:00",
-    tutor: {
-      name: "Dr. Brown",
-      avatar: "/placeholder.svg?height=40&width=40",
-    },
-    participants: 28,
-    maxParticipants: 30,
-    status: "live",
-    category: "Physics",
-  },
-  {
-    id: "class-4",
-    title: "Introduction to Programming",
-    course: "Computer Science Basics",
-    description: "Learn the fundamentals of programming and algorithms",
-    startTime: "2023-09-12T13:00:00",
-    endTime: "2023-09-12T14:30:00",
-    tutor: {
-      name: "Prof. Davis",
-      avatar: "/placeholder.svg?height=40&width=40",
-    },
-    participants: 22,
-    maxParticipants: 25,
-    status: "completed",
-    recording: "https://example.com/recording-1",
-    category: "Computer Science",
-  },
-  {
-    id: "class-5",
-    title: "Ancient Egyptian Civilization",
-    course: "World History",
-    description:
-      "Explore the culture, achievements, and legacy of Ancient Egypt",
-    startTime: "2023-09-11T11:00:00",
-    endTime: "2023-09-11T12:30:00",
-    tutor: {
-      name: "Dr. Wilson",
-      avatar: "/placeholder.svg?height=40&width=40",
-    },
-    participants: 20,
-    maxParticipants: 30,
-    status: "completed",
-    recording: "https://example.com/recording-2",
-    category: "History",
-  },
-];
-
+// Categories for filtering
 const categories = [
   "All Categories",
   "Mathematics",
@@ -136,32 +53,74 @@ export function LiveClassSchedule() {
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [searchQuery, setSearchQuery] = useState("");
+  const [liveClasses, setLiveClasses] = useState<ILiveClass[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+
+  // Fetch live classes from API
+  useEffect(() => {
+    const fetchLiveClasses = async () => {
+      try {
+        setLoading(true);
+        const classes = await liveClassApi.getLiveClasses();
+        setLiveClasses(classes);
+      } catch (error) {
+        console.error("Error fetching live classes:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load live classes. Please try again later.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLiveClasses();
+  }, [toast]);
 
   // Filter classes based on search query and category
-  const filteredClasses = liveClasses.filter((classItem) => {
+  const filteredClasses = liveClasses?.data?.filter((classItem) => {
     const matchesSearch =
+      searchQuery === "" ||
       classItem.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      classItem.course.toLowerCase().includes(searchQuery.toLowerCase()) ||
       classItem.description.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesCategory =
       selectedCategory === "All Categories" ||
-      classItem.category === selectedCategory;
+      classItem.subject === selectedCategory;
 
     return matchesSearch && matchesCategory;
   });
 
-  // Filter classes for the selected date
-  const classesForSelectedDate = filteredClasses.filter((classItem) => {
-    if (!date) return false;
+  // Filter classes based on date (for calendar view)
+  const classesOnSelectedDate = date
+    ? filteredClasses?.filter((classItem) => {
+        const classDate = new Date(classItem.startTime);
+        return (
+          classDate.getDate() === date.getDate() &&
+          classDate.getMonth() === date.getMonth() &&
+          classDate.getFullYear() === date.getFullYear()
+        );
+      })
+    : [];
 
-    const classDate = new Date(classItem.startTime);
-    return (
-      classDate.getDate() === date.getDate() &&
-      classDate.getMonth() === date.getMonth() &&
-      classDate.getFullYear() === date.getFullYear()
-    );
-  });
+  // Get live classes
+  const liveNowClasses = filteredClasses?.filter(
+    (classItem) => classItem.isLive
+  );
+
+  // Get upcoming classes (not live and not ended)
+  const upcomingClasses = filteredClasses?.filter(
+    (classItem) =>
+      !classItem.isLive &&
+      (!classItem.endTime || new Date(classItem.endTime) > new Date())
+  );
+
+  // Get past classes (have an end time in the past)
+  const pastClasses = filteredClasses?.filter(
+    (classItem) => classItem.endTime && new Date(classItem.endTime) < new Date()
+  );
 
   // Format date for display
   const formatDate = (dateString: string) => {
@@ -169,8 +128,6 @@ export function LiveClassSchedule() {
       weekday: "short",
       month: "short",
       day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
     };
     return new Date(dateString).toLocaleDateString("en-US", options);
   };
@@ -193,210 +150,259 @@ export function LiveClassSchedule() {
   };
 
   return (
-    <div className="container px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mb-8 space-y-4">
-        <h1 className="text-3xl font-bold tracking-tight">
-          Live Classes & Webinars
-        </h1>
-        <p className="text-muted-foreground">
-          Join interactive live sessions with expert tutors or watch recordings
-          of past classes.
-        </p>
-      </div>
-
-      <Tabs defaultValue="upcoming" className="mb-8">
-        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+    <div className="container mx-auto py-6">
+      <Tabs defaultValue="upcoming" className="space-y-4">
+        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
           <TabsList>
+            <TabsTrigger value="live" className="relative">
+              Live Now
+              {liveNowClasses?.length > 0 && (
+                <Badge className="ml-2 bg-red-500 hover:bg-red-600">
+                  {liveNowClasses?.length}
+                </Badge>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
-            <TabsTrigger value="live">Live Now</TabsTrigger>
             <TabsTrigger value="recordings">Recordings</TabsTrigger>
           </TabsList>
-
-          <div className="flex gap-2">
-            <Button
-              variant={view === "calendar" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setView("calendar")}
-            >
-              <CalendarIcon className="mr-2 h-4 w-4" />
-              Calendar
-            </Button>
-            <Button
-              variant={view === "list" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setView("list")}
-            >
-              <Filter className="mr-2 h-4 w-4" />
-              List
-            </Button>
-          </div>
-        </div>
-
-        <div className="mt-6 flex flex-col gap-4 sm:flex-row">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search classes..."
-              className="pl-10"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Category" />
-            </SelectTrigger>
-            <SelectContent>
-              {categories.map((category) => (
-                <SelectItem key={category} value={category}>
-                  {category}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div
-          className={`mt-6 grid gap-6 ${
-            view === "calendar" ? "lg:grid-cols-[300px_1fr]" : ""
-          }`}
-        >
-          {view === "calendar" && (
-            <div className="rounded-lg border p-4">
-              <Calendar
-                mode="single"
-                selected={date}
-                onSelect={setDate}
-                className="mx-auto"
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="relative">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search classes..."
+                className="pl-8"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-          )}
+            <Select
+              value={selectedCategory}
+              onValueChange={setSelectedCategory}
+            >
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <Filter className="mr-2 h-4 w-4" />
+                <SelectValue placeholder="Category" />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map((category) => (
+                  <SelectItem key={category} value={category}>
+                    {category}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
 
-          <div className="space-y-6">
-            <TabsContent value="upcoming">
-              {view === "calendar" ? (
-                <div>
-                  <h3 className="mb-4 text-lg font-medium">
-                    Classes on{" "}
-                    {date?.toLocaleDateString("en-US", {
-                      weekday: "long",
-                      month: "long",
-                      day: "numeric",
-                    })}
-                  </h3>
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+          <div className="md:col-span-2">
+            <TabsContent value="live" className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                {loading ? (
+                  Array(2)
+                    .fill(0)
+                    .map((_, i) => (
+                      <Card key={i}>
+                        <CardHeader className="pb-2">
+                          <Skeleton className="h-6 w-3/4" />
+                          <Skeleton className="h-4 w-1/2" />
+                        </CardHeader>
+                        <CardContent className="pb-2">
+                          <Skeleton className="mb-4 h-12 w-full" />
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            <Skeleton className="h-4 w-full" />
+                            <Skeleton className="h-4 w-full" />
+                            <Skeleton className="h-4 w-full" />
+                            <Skeleton className="h-4 w-full" />
+                          </div>
+                        </CardContent>
+                        <CardFooter>
+                          <Skeleton className="h-9 w-full" />
+                        </CardFooter>
+                      </Card>
+                    ))
+                ) : liveNowClasses?.length === 0 ? (
+                  <div className="col-span-2 rounded-lg border p-8 text-center">
+                    <p className="text-muted-foreground">
+                      No live classes at the moment.
+                    </p>
+                  </div>
+                ) : (
+                  liveNowClasses?.map((classItem) => (
+                    <ClassCard
+                      key={classItem._id}
+                      classItem={classItem}
+                      getDuration={getDuration}
+                      formatDate={formatDate}
+                      formatTime={formatTime}
+                    />
+                  ))
+                )}
+              </div>
+            </TabsContent>
 
-                  {classesForSelectedDate.length > 0 ? (
-                    <div className="space-y-4">
-                      {classesForSelectedDate
-                        .filter((classItem) => classItem.status === "upcoming")
-                        .sort(
-                          (a, b) =>
-                            new Date(a.startTime).getTime() -
-                            new Date(b.startTime).getTime()
-                        )
-                        .map((classItem) => (
-                          <ClassCard
-                            key={classItem.id}
-                            classItem={classItem}
-                            getDuration={getDuration}
-                            formatDate={formatDate}
-                            formatTime={formatTime}
-                          />
-                        ))}
-                    </div>
-                  ) : (
-                    <div className="rounded-lg border p-8 text-center">
+            <TabsContent value="upcoming" className="space-y-4">
+              <div className="flex justify-between">
+                <h2 className="text-xl font-semibold">Upcoming Classes</h2>
+                <div className="flex space-x-2">
+                  <Button
+                    variant={view === "list" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setView("list")}
+                  >
+                    List
+                  </Button>
+                  <Button
+                    variant={view === "calendar" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setView("calendar")}
+                  >
+                    Calendar
+                  </Button>
+                </div>
+              </div>
+
+              {view === "list" ? (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {loading ? (
+                    Array(4)
+                      .fill(0)
+                      .map((_, i) => (
+                        <Card key={i}>
+                          <CardHeader className="pb-2">
+                            <Skeleton className="h-6 w-3/4" />
+                            <Skeleton className="h-4 w-1/2" />
+                          </CardHeader>
+                          <CardContent className="pb-2">
+                            <Skeleton className="mb-4 h-12 w-full" />
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              <Skeleton className="h-4 w-full" />
+                              <Skeleton className="h-4 w-full" />
+                              <Skeleton className="h-4 w-full" />
+                              <Skeleton className="h-4 w-full" />
+                            </div>
+                          </CardContent>
+                          <CardFooter>
+                            <Skeleton className="h-9 w-full" />
+                          </CardFooter>
+                        </Card>
+                      ))
+                  ) : upcomingClasses?.length === 0 ? (
+                    <div className="col-span-2 rounded-lg border p-8 text-center">
                       <p className="text-muted-foreground">
-                        No classes scheduled for this date.
+                        No upcoming classes scheduled.
                       </p>
                     </div>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {filteredClasses
-                    .filter((classItem) => classItem.status === "upcoming")
-                    .sort(
-                      (a, b) =>
-                        new Date(a.startTime).getTime() -
-                        new Date(b.startTime).getTime()
-                    )
-                    .map((classItem) => (
+                  ) : (
+                    upcomingClasses?.data?.map((classItem) => (
                       <ClassCard
-                        key={classItem.id}
+                        key={classItem._id}
                         classItem={classItem}
                         getDuration={getDuration}
                         formatDate={formatDate}
                         formatTime={formatTime}
                       />
-                    ))}
-
-                  {filteredClasses.filter(
-                    (classItem) => classItem.status === "upcoming"
-                  ).length === 0 && (
-                    <div className="rounded-lg border p-8 text-center">
-                      <p className="text-muted-foreground">
-                        No upcoming classes found.
-                      </p>
-                    </div>
+                    ))
                   )}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <Card>
+                    <CardContent className="p-4">
+                      <Calendar
+                        mode="single"
+                        selected={date}
+                        onSelect={setDate}
+                        className="mx-auto"
+                      />
+                    </CardContent>
+                  </Card>
+
+                  <h3 className="font-medium">
+                    Classes on {date?.toDateString()}
+                  </h3>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {loading ? (
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <Skeleton className="h-6 w-3/4" />
+                          <Skeleton className="h-4 w-1/2" />
+                        </CardHeader>
+                        <CardContent className="pb-2">
+                          <Skeleton className="mb-4 h-12 w-full" />
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            <Skeleton className="h-4 w-full" />
+                            <Skeleton className="h-4 w-full" />
+                          </div>
+                        </CardContent>
+                        <CardFooter>
+                          <Skeleton className="h-9 w-full" />
+                        </CardFooter>
+                      </Card>
+                    ) : classesOnSelectedDate?.length === 0 ? (
+                      <div className="col-span-2 rounded-lg border p-8 text-center">
+                        <p className="text-muted-foreground">
+                          No classes scheduled for this date.
+                        </p>
+                      </div>
+                    ) : (
+                      classesOnSelectedDate?.map((classItem) => (
+                        <ClassCard
+                          key={classItem._id}
+                          classItem={classItem}
+                          getDuration={getDuration}
+                          formatDate={formatDate}
+                          formatTime={formatTime}
+                        />
+                      ))
+                    )}
+                  </div>
                 </div>
               )}
             </TabsContent>
 
-            <TabsContent value="live">
-              <div className="space-y-4">
-                {filteredClasses
-                  .filter((classItem) => classItem.status === "live")
-                  .map((classItem) => (
-                    <ClassCard
-                      key={classItem.id}
-                      classItem={classItem}
-                      getDuration={getDuration}
-                      formatDate={formatDate}
-                      formatTime={formatTime}
-                    />
-                  ))}
-
-                {filteredClasses.filter(
-                  (classItem) => classItem.status === "live"
-                ).length === 0 && (
-                  <div className="rounded-lg border p-8 text-center">
-                    <p className="text-muted-foreground">
-                      No live classes at the moment.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="recordings">
-              <div className="space-y-4">
-                {filteredClasses
-                  .filter(
-                    (classItem) =>
-                      classItem.status === "completed" && classItem.recording
-                  )
-                  .map((classItem) => (
-                    <ClassCard
-                      key={classItem.id}
-                      classItem={classItem}
-                      getDuration={getDuration}
-                      formatDate={formatDate}
-                      formatTime={formatTime}
-                    />
-                  ))}
-
-                {filteredClasses.filter(
-                  (classItem) =>
-                    classItem.status === "completed" && classItem.recording
-                ).length === 0 && (
-                  <div className="rounded-lg border p-8 text-center">
+            <TabsContent value="recordings" className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                {loading ? (
+                  Array(4)
+                    .fill(0)
+                    .map((_, i) => (
+                      <Card key={i}>
+                        <CardHeader className="pb-2">
+                          <Skeleton className="h-6 w-3/4" />
+                          <Skeleton className="h-4 w-1/2" />
+                        </CardHeader>
+                        <CardContent className="pb-2">
+                          <Skeleton className="mb-4 h-12 w-full" />
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            <Skeleton className="h-4 w-full" />
+                            <Skeleton className="h-4 w-full" />
+                            <Skeleton className="h-4 w-full" />
+                            <Skeleton className="h-4 w-full" />
+                          </div>
+                        </CardContent>
+                        <CardFooter>
+                          <Skeleton className="h-9 w-full" />
+                        </CardFooter>
+                      </Card>
+                    ))
+                ) : pastClasses?.data?.length === 0 ? (
+                  <div className="col-span-2 rounded-lg border p-8 text-center">
                     <p className="text-muted-foreground">
                       No recordings found.
                     </p>
                   </div>
+                ) : (
+                  pastClasses?.data?.map((classItem) => (
+                    <ClassCard
+                      key={classItem._id}
+                      classItem={classItem}
+                      getDuration={getDuration}
+                      formatDate={formatDate}
+                      formatTime={formatTime}
+                    />
+                  ))
                 )}
               </div>
             </TabsContent>
@@ -413,10 +419,10 @@ function ClassCard({
   formatDate,
   formatTime,
 }: {
-  classItem: any;
-  getDuration: any;
-  formatDate: any;
-  formatTime: any;
+  classItem: ILiveClass;
+  getDuration: (startTime: string, endTime: string) => number;
+  formatDate: (dateString: string) => string;
+  formatTime: (dateString: string) => string;
 }) {
   return (
     <Card>
@@ -424,14 +430,14 @@ function ClassCard({
         <div className="flex items-start justify-between">
           <div>
             <CardTitle>{classItem.title}</CardTitle>
-            <CardDescription>{classItem.course}</CardDescription>
+            <CardDescription>{classItem.subject}</CardDescription>
           </div>
-          {classItem.status === "live" ? (
+          {classItem.isLive ? (
             <Badge className="bg-red-500 hover:bg-red-600">Live Now</Badge>
-          ) : classItem.status === "upcoming" ? (
-            <Badge variant="outline">Upcoming</Badge>
-          ) : (
+          ) : classItem.endTime && new Date(classItem.endTime) < new Date() ? (
             <Badge variant="outline">Recorded</Badge>
+          ) : (
+            <Badge variant="outline">Upcoming</Badge>
           )}
         </div>
       </CardHeader>
@@ -445,72 +451,57 @@ function ClassCard({
           <div className="flex items-center">
             <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
             <span>
-              {formatTime(classItem.startTime)} -{" "}
-              {formatTime(classItem.endTime)} (
-              {getDuration(classItem.startTime, classItem.endTime)} min)
+              {formatTime(classItem.startTime)}
+              {classItem.endTime && ` - ${formatTime(classItem.endTime)}`}
+              {classItem.endTime &&
+                ` (${getDuration(classItem.startTime, classItem.endTime)} min)`}
             </span>
           </div>
           <div className="flex items-center">
             <Users className="mr-2 h-4 w-4 text-muted-foreground" />
             <span>
-              {classItem.participants}/{classItem.maxParticipants} participants
+              {classItem.participants.length}/{classItem.maxParticipants || 100}{" "}
+              participants
             </span>
           </div>
           <div className="flex items-center">
             <Avatar className="mr-2 h-5 w-5">
               <AvatarImage
-                src={classItem.tutor.avatar}
-                alt={classItem.tutor.name}
+                src={classItem.instructor.avatar}
+                alt={classItem.instructor.name}
               />
-              <AvatarFallback>{classItem.tutor.name.charAt(0)}</AvatarFallback>
+              <AvatarFallback>
+                {classItem.instructor.name.charAt(0)}
+              </AvatarFallback>
             </Avatar>
-            <span>{classItem.tutor.name}</span>
+            <span>{classItem.instructor.name}</span>
           </div>
         </div>
       </CardContent>
       <CardFooter>
-        {classItem.status === "live" ? (
+        {classItem.isLive ? (
           <Button asChild className="w-full">
-            <Link href={`/live-classes/${classItem.id}`}>
+            <Link href={`/live-classes/${classItem._id}`}>
               <Play className="mr-2 h-4 w-4" />
               Join Now
             </Link>
           </Button>
-        ) : classItem.status === "upcoming" ? (
+        ) : classItem.endTime && new Date(classItem.endTime) < new Date() ? (
           <Button variant="outline" asChild className="w-full">
-            <Link href={`/live-classes/${classItem.id}`}>
-              <CalendarIcon className="mr-2 h-4 w-4" />
-              Add to Calendar
+            <Link href={`/live-classes/recordings/${classItem._id}`}>
+              <Video className="mr-2 h-4 w-4" />
+              Watch Recording
             </Link>
           </Button>
         ) : (
           <Button variant="outline" asChild className="w-full">
-            <Link href={`/live-classes/recordings/${classItem.id}`}>
-              <Video className="mr-2 h-4 w-4" />
-              Watch Recording
+            <Link href={`/live-classes/${classItem._id}`}>
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              View Details
             </Link>
           </Button>
         )}
       </CardFooter>
     </Card>
   );
-}
-
-function formatDate(dateString: string) {
-  const options: Intl.DateTimeFormatOptions = {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  };
-  return new Date(dateString).toLocaleDateString("en-US", options);
-}
-
-function formatTime(dateString: string) {
-  const options: Intl.DateTimeFormatOptions = {
-    hour: "2-digit",
-    minute: "2-digit",
-  };
-  return new Date(dateString).toLocaleTimeString("en-US", options);
 }

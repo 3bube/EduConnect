@@ -2,13 +2,14 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
-import {
+import React, {
   JSXElementConstructor,
   Key,
   ReactElement,
   ReactNode,
   ReactPortal,
   useState,
+  useEffect,
 } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -17,6 +18,7 @@ import {
   markLessonComplete,
   downloadResource,
 } from "@/api/course";
+import { getCourseProgress, CourseProgressResponse } from "@/api/student";
 import type { Course, MarkLessonCompleteParams } from "@/api/course";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -51,11 +53,17 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
   const [currentLessonIndex, setCurrentLessonIndex] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState("content");
+  const [userProgress, setUserProgress] = useState({
+    completedLessonsCount: 0,
+    totalLessons: 0,
+    progressPercentage: 0,
+    completedLessons: [] as string[],
+  });
 
   const {
     data: course,
-    isLoading,
-    error,
+    isLoading: isLoadingCourse,
+    error: courseError,
   } = useQuery<Course>({
     queryKey: ["course", courseId],
     queryFn: async () => {
@@ -65,6 +73,35 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
     staleTime: 60 * 60 * 1000, // 1 hour
   });
 
+  // console.log("Course data:", course);
+
+  // Fetch user-specific progress for this course
+  const {
+    data: progress,
+    isLoading: isLoadingProgress,
+    error: progressError,
+  } = useQuery<CourseProgressResponse["progress"]>({
+    queryKey: ["courseProgress", courseId],
+    queryFn: async () => {
+      return await getCourseProgress(courseId);
+    },
+    staleTime: 60 * 1000, // 1 minute
+  });
+
+  // Update user progress state when data changes
+  useEffect(() => {
+    if (progress) {
+      console.log("Progress data:", progress);
+      setUserProgress({
+        completedLessonsCount: progress.completedLessonsCount || 0,
+        totalLessons: progress.totalLessons || 0,
+        progressPercentage: progress.progressPercentage || 0,
+        completedLessons:
+          progress.completedLessons?.map((id: string) => id.toString()) || [],
+      });
+    }
+  }, [progress]);
+
   const queryClient = useQueryClient();
 
   const { mutate: markLessonCompleteMutation } = useMutation({
@@ -72,17 +109,27 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
       markLessonComplete(params),
     onSuccess: (data, variables) => {
       console.log("Lesson marked as complete successfully:", data);
-      // Invalidate and refetch course data
+      // Invalidate and refetch both course and progress data
       queryClient.invalidateQueries({
-        queryKey: ["course", variables.courseId],
+        queryKey: ["courseProgress", variables.courseId],
       });
-      // Move to next lesson on success
-      handleNextLesson();
+      
+      // Show success message
+      toast.success("Lesson marked as completed!");
+      
+      // Move to next lesson on success after a short delay
+      setTimeout(() => {
+        handleNextLesson();
+      }, 500);
     },
     onError: (error) => {
       console.error("Error marking lesson as complete:", error);
+      toast.error("Failed to mark lesson as completed. Please try again.");
     },
   });
+
+  const isLoading = isLoadingCourse || isLoadingProgress;
+  const error = courseError || progressError;
 
   if (isLoading) {
     return <div className="text-center py-8">Loading course materials...</div>;
@@ -99,20 +146,18 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
   const currentModule = course?.modules?.[currentModuleIndex];
   const currentLesson = currentModule?.lessons?.[currentLessonIndex];
 
-  // Calculate total lessons and completed lessons
-  const totalLessons: number =
+  // Use the user-specific progress data instead of calculating from course data
+  const totalLessons =
+    userProgress.totalLessons ||
     course?.modules?.reduce(
       (total: number, module: { lessons: string | any[] }) =>
         total + (module.lessons?.length || 0),
       0
-    ) || 0;
+    ) ||
+    0;
 
-  const completedLessons: number =
-    course?.modules?.reduce(
-      (total: number, module: { lessons: Array<{ completed?: boolean }> }) =>
-        total + module.lessons?.filter((lesson) => lesson.completed).length,
-      0
-    ) || 0;
+  const completedLessons = userProgress.completedLessonsCount || 0;
+  const progressPercentage = userProgress.progressPercentage || 0;
 
   const handleLessonSelect = (moduleIndex: number, lessonIndex: number) => {
     setCurrentModuleIndex(moduleIndex);
@@ -147,17 +192,27 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
   };
 
   const markAsCompleted = () => {
-    if (!currentLesson?.id) return;
+    if (!currentLesson || !course) {
+      toast.error("Cannot mark lesson as completed. Course or lesson data is missing.");
+      return;
+    }
+    
+    // Check if this lesson is already marked as completed
+    if (userProgress.completedLessons.includes(currentLesson.id)) {
+      toast.info("This lesson is already marked as completed.");
+      return;
+    }
 
-    console.log("Marking lesson as complete:", {
-      courseId,
-      lessonId: currentLesson.id,
-    });
-
+    // Mark the current lesson as completed using the mutation
+    // This will call the server-side API to update the progress in the database
     markLessonCompleteMutation({
-      courseId,
+      courseId: course._id,
       lessonId: currentLesson.id,
     });
+    
+    // Note: We don't need to update local state here as the mutation success handler
+    // will invalidate and refetch the course progress data, which will then update
+    // the UI automatically through the useEffect hook that watches the progress data
   };
 
   const formatDate = (dateString: string) => {
@@ -234,106 +289,111 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
           <aside className="w-80 overflow-y-auto border-r">
             <div className="p-4">
               <div className="mb-4">
-                <div className="mb-2 flex items-center justify-between text-sm">
-                  <span>Your progress</span>
-                  <span className="font-medium">{course.progress}%</span>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-sm font-medium">
+                    {completedLessons} of {totalLessons} lessons completed
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {progressPercentage}%
+                  </div>
                 </div>
-                <Progress value={Number(course.progress)} className="h-2" />
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {completedLessons} of {totalLessons} lessons completed
-                </p>
+                <Progress value={progressPercentage} className="h-2" />
+                <Accordion
+                  type="multiple"
+                  defaultValue={[currentModule?.id]}
+                  className="w-full"
+                >
+                  {course.modules?.map(
+                    (
+                      module: {
+                        _id: string;
+                        id: Key | null | undefined;
+                        title:
+                          | string
+                          | number
+                          | bigint
+                          | boolean
+                          | ReactElement<
+                              unknown,
+                              string | JSXElementConstructor<any>
+                            >
+                          | Iterable<ReactNode>
+                          | ReactPortal
+                          | Promise<
+                              | string
+                              | number
+                              | bigint
+                              | boolean
+                              | ReactPortal
+                              | ReactElement<
+                                  unknown,
+                                  string | JSXElementConstructor<any>
+                                >
+                              | Iterable<ReactNode>
+                              | null
+                              | undefined
+                            >
+                          | null
+                          | undefined;
+                        lessons: any[];
+                      },
+                      moduleIndex: number
+                    ) => (
+                      <AccordionItem key={module.id} value={module._id}>
+                        <AccordionTrigger className="hover:no-underline">
+                          <div className="text-left">
+                            <h4 className="font-medium">{module.title}</h4>
+                            <p className="text-xs text-muted-foreground">
+                              {module.lessons.length} lessons
+                            </p>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <ul className="space-y-1 pt-1">
+                            {module.lessons.map((lesson, lessonIndex) => (
+                              <li key={lesson.id}>
+                                <Button
+                                  variant="ghost"
+                                  className={`w-full justify-start ${
+                                    moduleIndex === currentModuleIndex &&
+                                    lessonIndex === currentLessonIndex
+                                      ? "bg-muted"
+                                      : ""
+                                  }`}
+                                  onClick={() =>
+                                    handleLessonSelect(moduleIndex, lessonIndex)
+                                  }
+                                >
+                                  <div className="flex w-full items-center">
+                                    {userProgress.completedLessons.includes(
+                                      lesson.id
+                                    ) ? (
+                                      <CheckCircle2 className="mr-2 h-4 w-4 text-green-500" />
+                                    ) : (
+                                      <div className="mr-2 h-4 w-4 rounded-full border border-muted" />
+                                    )}
+                                    {lesson.type.toLowerCase() === "video" ? (
+                                      <Play className="mr-2 h-4 w-4" />
+                                    ) : (
+                                      <FileText className="mr-2 h-4 w-4" />
+                                    )}
+                                    <span className="text-left">
+                                      {lesson.title}
+                                    </span>
+                                    <span className="ml-auto text-xs text-muted-foreground">
+                                      {lesson.duration}
+                                    </span>
+                                  </div>
+                                </Button>
+                              </li>
+                            ))}
+                          </ul>
+                        </AccordionContent>
+                      </AccordionItem>
+                    )
+                  )}
+                </Accordion>
               </div>
-
-              <Accordion
-                type="multiple"
-                defaultValue={[currentModule?.id]}
-                className="w-full"
-              >
-                {course.modules?.map(
-                  (
-                    module: {
-                      _id: string;
-                      id: Key | null | undefined;
-                      title:
-                        | string
-                        | number
-                        | bigint
-                        | boolean
-                        | ReactElement<
-                            unknown,
-                            string | JSXElementConstructor<any>
-                          >
-                        | Iterable<ReactNode>
-                        | ReactPortal
-                        | Promise<
-                            | string
-                            | number
-                            | bigint
-                            | boolean
-                            | ReactPortal
-                            | ReactElement<
-                                unknown,
-                                string | JSXElementConstructor<any>
-                              >
-                            | Iterable<ReactNode>
-                            | null
-                            | undefined
-                          >
-                        | null
-                        | undefined;
-                      lessons: any[];
-                    },
-                    moduleIndex: number
-                  ) => (
-                    <AccordionItem key={module.id} value={module._id}>
-                      <AccordionTrigger className="hover:no-underline">
-                        <div className="text-left">
-                          <h4 className="font-medium">{module.title}</h4>
-                          <p className="text-xs text-muted-foreground">
-                            {module.lessons.length} lessons
-                          </p>
-                        </div>
-                      </AccordionTrigger>
-                      <AccordionContent>
-                        <ul className="space-y-1 pt-1">
-                          {module.lessons.map((lesson, lessonIndex) => (
-                            <li key={lesson.id}>
-                              <Button
-                                variant="ghost"
-                                className={`w-full justify-start ${
-                                  moduleIndex === currentModuleIndex &&
-                                  lessonIndex === currentLessonIndex
-                                    ? "bg-muted"
-                                    : ""
-                                }`}
-                                onClick={() =>
-                                  handleLessonSelect(moduleIndex, lessonIndex)
-                                }
-                              >
-                                <div className="flex w-full items-center">
-                                  {lesson.completed ? (
-                                    <CheckCircle2 className="mr-2 h-4 w-4 text-green-500" />
-                                  ) : lesson.type.toLowerCase() === "video" ? (
-                                    <Play className="mr-2 h-4 w-4" />
-                                  ) : (
-                                    <FileText className="mr-2 h-4 w-4" />
-                                  )}
-                                  <span className="text-left">
-                                    {lesson.title}
-                                  </span>
-                                  <span className="ml-auto text-xs text-muted-foreground">
-                                    {lesson.duration}
-                                  </span>
-                                </div>
-                              </Button>
-                            </li>
-                          ))}
-                        </ul>
-                      </AccordionContent>
-                    </AccordionItem>
-                  )
-                )}
-              </Accordion>
             </div>
           </aside>
         )}
@@ -595,7 +655,7 @@ export function LearningMaterial({ courseId }: { courseId: string }) {
                 Previous Lesson
               </Button>
 
-              {!currentLesson?.completed ? (
+              {!userProgress.completedLessons.includes(currentLesson?.id) ? (
                 <Button onClick={markAsCompleted}>Mark as Completed</Button>
               ) : (
                 <Button variant="outline" disabled>

@@ -113,15 +113,15 @@ export const enrollCourse = async (
 export const markLessonComplete = async ({
   courseId,
   lessonId,
-}: MarkLessonCompleteParams): Promise<Course> => {
+}: MarkLessonCompleteParams): Promise<any> => {
   try {
     console.log(
       `Making API request to mark lesson complete - courseId: ${courseId}, lessonId: ${lessonId}`
     );
 
-    // Make the request to the backend
+    // Make the request to the backend using the correct endpoint
     const response = await newRequest.post(
-      `/courses/${courseId}/lessons/${lessonId}/complete`
+      `/student/courses/${courseId}/lessons/${lessonId}/progress`
     );
 
     console.log(

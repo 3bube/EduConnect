@@ -51,19 +51,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Fix the user data structure to match our User interface
       const userData: User = {
-        _id: response.user.id,
+        _id: response.user._id,
         name: response.user.name,
         email: response.user.email,
-        role: response.user.role as "student" | "tutor", // Cast to our more specific type
+        role: response.user.role as "student" | "tutor" | "both" | "admin", // Cast to our more specific type
         avatar: response.user.avatar,
         enrolledCourses: [], // Initialize as empty array
       };
 
+      console.log("User data:", userData.role);
       setUser(userData);
       localStorage.setItem("user", JSON.stringify(userData));
       localStorage.setItem("token", String(response.accessToken));
 
-      if (userData.role === "tutor") {
+      if (userData.role === "admin") {
+        router.push("/admin-dashboard");
+      } else if (userData.role === "tutor" || userData.role === "both") {
         router.push("/tutor-dashboard");
       } else {
         router.push("/dashboard");

@@ -11,60 +11,110 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Play, Star, Users } from "lucide-react";
+import { Play, Star, Users, AlertCircle, Video, Calendar, Clock } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { useQuery } from "@tanstack/react-query";
 import {
   getEnrolledCourses,
   getRecommendedCourses,
+  getLearningStats,
   EnrolledCourse,
 } from "@/api/student";
 import { Course } from "@/api/course";
-import { useEffect, useState } from "react";
-import axios from "@/lib/axios";
 import { GenerateProgressButton } from "./GenerateProgressButton";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface LearningStats {
   overallCompletion: number;
   coursesEnrolled: number;
 }
 
+interface LiveClass {
+  id: string;
+  title: string;
+  description: string;
+  courseId: string;
+  courseName: string;
+  scheduledFor: Date;
+  duration: number; // minutes
+  status: "scheduled" | "live" | "completed" | "cancelled";
+  attendees: number;
+  maxAttendees: number;
+  meetingLink: string;
+  instructorName: string;
+}
+
 export function StudentDashboard() {
   const { user } = useAuth();
-  const [stats, setStats] = useState<LearningStats | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  
+  // Mock live classes data (in a real app, this would come from an API)
+  const liveClasses: LiveClass[] = [
+    {
+      id: "1",
+      title: "Introduction to React Hooks",
+      description: "Learn the basics of React Hooks and how to use them in your projects.",
+      courseId: "c1",
+      courseName: "Advanced React Development",
+      scheduledFor: new Date(Date.now() + 86400000), // Tomorrow
+      duration: 60, // minutes
+      status: "scheduled", // scheduled, live, completed, cancelled
+      attendees: 12,
+      maxAttendees: 50,
+      meetingLink: "",
+      instructorName: "John Smith"
+    },
+    {
+      id: "2",
+      title: "Database Design Principles",
+      description: "Understanding the fundamentals of database design and normalization.",
+      courseId: "c2",
+      courseName: "Database Management Systems",
+      scheduledFor: new Date(Date.now() + 3600000), // In 1 hour
+      duration: 90, // minutes
+      status: "live",
+      attendees: 28,
+      maxAttendees: 30,
+      meetingLink: "https://meet.educonnect.com/2",
+      instructorName: "Jane Doe"
+    },
+  ];
 
-  const { data: enrolledCourses = [] } = useQuery<EnrolledCourse[]>({
+  const { 
+    data: enrolledCourses = [], 
+    isLoading: isLoadingEnrolled,
+    error: enrolledError
+  } = useQuery<EnrolledCourse[]>({
     queryKey: ["enrolledCourses"],
     queryFn: getEnrolledCourses,
     enabled: !!user?._id,
   });
 
-  console.log(enrolledCourses);
-
-  const { data: recommendedCourses = [] } = useQuery<Course[]>({
+  const { 
+    data: recommendedCourses = [], 
+    isLoading: isLoadingRecommended,
+    error: recommendedError
+  } = useQuery<Course[]>({
     queryKey: ["recommendedCourses"],
     queryFn: getRecommendedCourses,
     enabled: !!user?._id,
   });
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const response = await axios.get("/student/stats");
-        setStats(response.data.stats);
-      } catch (error) {
-        console.error("Failed to fetch learning stats:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  const {
+    data: stats,
+    isLoading: isLoadingStats,
+    error: statsError
+  } = useQuery<LearningStats>({
+    queryKey: ["learningStats"],
+    queryFn: getLearningStats,
+    enabled: !!user?._id,
+  });
 
-    if (user) {
-      fetchStats();
-    }
-  }, [user]);
+  // Check if any data is still loading
+  const isLoading = isLoadingEnrolled || isLoadingRecommended || isLoadingStats;
+  
+  // Check if there are any errors
+  const hasErrors = enrolledError || recommendedError || statsError;
 
   if (isLoading) {
     return (
@@ -75,6 +125,20 @@ export function StudentDashboard() {
             Please wait while we fetch your data
           </p>
         </div>
+      </div>
+    );
+  }
+
+  if (hasErrors) {
+    return (
+      <div className="container py-8">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>
+            There was a problem loading your dashboard data. Please try again later.
+          </AlertDescription>
+        </Alert>
       </div>
     );
   }
@@ -92,12 +156,6 @@ export function StudentDashboard() {
           </p>
         </div>
         <div className="flex gap-2">
-          {/* <Button asChild>
-            <Link href="/live-classes">
-              <Play className="mr-2 h-4 w-4" />
-              Join Next Class
-            </Link>
-          </Button> */}
           <Button variant="outline" asChild>
             <Link href="/courses">Continue Learning</Link>
           </Button>
@@ -119,47 +177,42 @@ export function StudentDashboard() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {isLoading ? (
-              <div className="flex justify-center items-center h-32">
-                <p>Loading stats...</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Overall Completion</p>
+                <p className="text-2xl font-bold">
+                  {stats?.overallCompletion || 0}%
+                </p>
               </div>
-            ) : (
-              <>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium">Overall Completion</p>
-                    <p className="text-2xl font-bold">
-                      {stats?.overallCompletion || 0}%
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">Courses Enrolled</p>
-                    <p className="text-2xl font-bold">
-                      {stats?.coursesEnrolled || 0}
-                    </p>
-                  </div>
-                </div>
-                <Progress
-                  value={stats?.overallCompletion || 0}
-                  className="h-2 w-full"
-                />
-              </>
-            )}
+              <div>
+                <p className="text-sm font-medium">Courses Enrolled</p>
+                <p className="text-2xl font-bold">
+                  {stats?.coursesEnrolled || 0}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm font-medium">Completed Courses</p>
+                <p className="text-2xl font-bold">
+                  {enrolledCourses.filter(c => c.progress === 100).length}
+                </p>
+              </div>
+            </div>
+            <Progress value={stats?.overallCompletion || 0} className="h-2" />
           </div>
         </CardContent>
       </Card>
 
-      {/* Ongoing Courses */}
+      {/* Enrolled Courses */}
       <div>
         <h2 className="mb-4 text-2xl font-bold tracking-tight">
-          Your Ongoing Courses
+          Your Enrolled Courses
         </h2>
         {enrolledCourses.length === 0 ? (
           <Card className="p-8 text-center">
-            <p className="mb-4 text-muted-foreground">
+            <p className="text-muted-foreground">
               You haven&#39;t enrolled in any courses yet.
             </p>
-            <Button asChild>
+            <Button className="mt-4" asChild>
               <Link href="/courses">Browse Courses</Link>
             </Button>
           </Card>
@@ -167,10 +220,10 @@ export function StudentDashboard() {
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {enrolledCourses.map((course) => (
               <Card key={course._id} className="overflow-hidden">
-                <div className="relative h-[100px]">
+                <div className="relative h-[120px]">
                   <Image
                     src={
-                      course.image || "/placeholder.svg?height=100&width=180"
+                      course.image || "/placeholder.svg?height=120&width=200"
                     }
                     alt={course.title}
                     fill
@@ -209,6 +262,100 @@ export function StudentDashboard() {
                       </Link>
                     </Button>
                   </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Live Classes */}
+      <div>
+        <h2 className="mb-4 text-2xl font-bold tracking-tight">
+          Live Classes
+        </h2>
+        {liveClasses.length === 0 ? (
+          <Card className="p-8 text-center">
+            <p className="text-muted-foreground">
+              No live classes available at the moment.
+            </p>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {liveClasses.map((liveClass) => (
+              <Card key={liveClass.id} className="overflow-hidden">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">{liveClass.title}</CardTitle>
+                    <Badge
+                      variant={liveClass.status === "live" ? "default" : 
+                        liveClass.status === "scheduled" ? "outline" : 
+                        liveClass.status === "completed" ? "secondary" : "destructive"}
+                    >
+                      {liveClass.status === "live" ? "Live Now" : 
+                        liveClass.status === "scheduled" ? "Upcoming" : 
+                        liveClass.status === "completed" ? "Completed" : "Cancelled"}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {liveClass.description}
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <div className="mb-4 space-y-2">
+                    <div className="flex flex-wrap gap-3 text-sm">
+                      <div className="flex items-center gap-1">
+                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                        <span>
+                          {new Date(liveClass.scheduledFor).toLocaleDateString(undefined, {
+                            weekday: "short",
+                            month: "short",
+                            day: "numeric",
+                          })}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                        <span>
+                          {new Date(liveClass.scheduledFor).toLocaleTimeString(undefined, {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                          {" - "}
+                          {new Date(
+                            new Date(liveClass.scheduledFor).getTime() + liveClass.duration * 60000
+                          ).toLocaleTimeString(undefined, {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-3 text-sm">
+                      <div className="flex items-center gap-1">
+                        <Play className="h-4 w-4 text-muted-foreground" />
+                        <span>Course: {liveClass.courseName}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        <span>
+                          {liveClass.attendees}/{liveClass.maxAttendees} attendees
+                        </span>
+                      </div>
+                    </div>
+                    <p className="text-sm">Instructor: {liveClass.instructorName}</p>
+                  </div>
+                  {liveClass.status === "live" ? (
+                    <Button className="w-full bg-green-600 hover:bg-green-700">
+                      <Video className="mr-2 h-4 w-4" />
+                      Join Live Class
+                    </Button>
+                  ) : liveClass.status === "scheduled" ? (
+                    <Button className="w-full" variant="outline">
+                      <Calendar className="mr-2 h-4 w-4" />
+                      Add to Calendar
+                    </Button>
+                  ) : null}
                 </CardContent>
               </Card>
             ))}

@@ -34,7 +34,9 @@ import {
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { getAssessmentForUser } from "@/api/assessment";
+import { getUserCertificates, Certificate as CertificateType } from "@/api/certificate";
 import { useAuth } from "@/context/AuthContext";
+import { useRouter } from "next/navigation";
 
 // Define assessment interface
 interface AssessmentQuestion {
@@ -66,34 +68,13 @@ interface AssessmentResponse {
   assessment: Assessment[];
 }
 
-// Mock certificates data (we'll keep this for now)
-const certificates = [
-  {
-    id: "cert-1",
-    title: "Introduction to Mathematics",
-    issueDate: "2023-08-15",
-    expiryDate: "2026-08-15",
-    issuer: "Student Tutor Academy",
-    credentialID: "STM-1234-5678",
-    grade: "A",
-    skills: ["Algebra", "Geometry", "Calculus"],
-  },
-  {
-    id: "cert-2",
-    title: "Basic Physics Principles",
-    issueDate: "2023-07-10",
-    expiryDate: "2026-07-10",
-    issuer: "Student Tutor Academy",
-    credentialID: "STP-5678-1234",
-    grade: "B+",
-    skills: ["Mechanics", "Thermodynamics", "Waves"],
-  },
-];
+// Certificate interface is imported from the API
 
 export function AssessmentList() {
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [searchQuery, setSearchQuery] = useState("");
   const { user } = useAuth();
+  const router = useRouter();
 
   // Fetch assessments using React Query
   const { data, isLoading, error } = useQuery<AssessmentResponse>({
@@ -101,6 +82,16 @@ export function AssessmentList() {
     queryFn: async () => {
       const response = await getAssessmentForUser();
       return response as AssessmentResponse;
+    },
+    enabled: !!user,
+  });
+
+  // Fetch user certificates
+  const { data: certificateData, isLoading: certificatesLoading } = useQuery({
+    queryKey: ["certificates"],
+    queryFn: async () => {
+      const response = await getUserCertificates();
+      return response;
     },
     enabled: !!user,
   });
@@ -347,64 +338,94 @@ export function AssessmentList() {
         </TabsContent>
 
         <TabsContent value="certificates" className="mt-6">
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {certificates.map((certificate) => (
-              <Card key={certificate.id}>
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle>{certificate.title}</CardTitle>
-                      <CardDescription>
-                        Issued by {certificate.issuer}
-                      </CardDescription>
+          {certificatesLoading ? (
+            <div className="flex h-40 items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <span className="ml-2">Loading certificates...</span>
+            </div>
+          ) : certificateData?.certificates && certificateData.certificates.length > 0 ? (
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {certificateData.certificates.map((certificate: CertificateType) => (
+                <Card key={certificate._id}>
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <CardTitle>{certificate.title}</CardTitle>
+                        <CardDescription>
+                          {certificate.courseId?.title && (
+                            <span className="block text-sm">
+                              Course: {certificate.courseId.title}
+                            </span>
+                          )}
+                          Issued by {certificate.issuer}
+                        </CardDescription>
+                      </div>
+                      <Award className="h-6 w-6 text-primary" />
                     </div>
-                    <Award className="h-6 w-6 text-primary" />
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <p className="text-muted-foreground">Issue Date</p>
-                      <p className="font-medium">
-                        {new Date(certificate.issueDate).toLocaleDateString()}
-                      </p>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <p className="text-muted-foreground">Issue Date</p>
+                        <p className="font-medium">
+                          {new Date(certificate.issueDate).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Expiry Date</p>
+                        <p className="font-medium">
+                          {certificate.expiryDate
+                            ? new Date(certificate.expiryDate).toLocaleDateString()
+                            : "No expiry"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Credential ID</p>
+                        <p className="font-medium">{certificate.credentialId}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Grade</p>
+                        <p className="font-medium">{certificate.grade}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-muted-foreground">Expiry Date</p>
-                      <p className="font-medium">
-                        {new Date(certificate.expiryDate).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Credential ID</p>
-                      <p className="font-medium">{certificate.credentialID}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Grade</p>
-                      <p className="font-medium">{certificate.grade}</p>
-                    </div>
-                  </div>
 
-                  <div className="mt-4">
-                    <p className="mb-2 text-sm text-muted-foreground">Skills</p>
-                    <div className="flex flex-wrap gap-1">
-                      {certificate.skills.map((skill) => (
-                        <Badge key={skill} variant="secondary">
-                          {skill}
-                        </Badge>
-                      ))}
+                    <div className="mt-4">
+                      <p className="mb-2 text-sm text-muted-foreground">Skills</p>
+                      <div className="flex flex-wrap gap-1">
+                        {certificate.skills && certificate.skills.length > 0 ? (
+                          certificate.skills.map((skill) => (
+                            <Badge key={skill} variant="secondary">
+                              {skill}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-sm text-muted-foreground">No skills listed</span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-                <CardFooter>
-                  <Button variant="outline" className="w-full">
-                    <Award className="mr-2 h-4 w-4" />
-                    View Certificate
-                  </Button>
-                </CardFooter>
-              </Card>
-            ))}
-          </div>
+                  </CardContent>
+                  <CardFooter>
+                    <Button 
+                      variant="outline" 
+                      className="w-full"
+                      onClick={() => router.push(`/certificates/${certificate._id}`)}
+                    >
+                      <Award className="mr-2 h-4 w-4" />
+                      View Certificate
+                    </Button>
+                  </CardFooter>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-8 flex flex-col items-center justify-center text-center">
+              <Award className="h-12 w-12 text-muted-foreground" />
+              <h3 className="mt-4 text-lg font-medium">No certificates yet</h3>
+              <p className="text-muted-foreground">
+                Complete courses and pass assessments to earn certificates
+              </p>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

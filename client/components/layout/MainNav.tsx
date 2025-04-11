@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Book,
-  // Calendar,
+  Calendar,
   ClipboardList,
   Compass,
   GraduationCap,
@@ -59,13 +59,13 @@ export function MainNav() {
       active: isActive("/courses"),
       roles: ["student", "tutor", "parent", "admin"],
     },
-    // {
-    //   title: "Live Classes",
-    //   href: "/live-classes",
-    //   icon: <Calendar className="mr-2 h-4 w-4" />,
-    //   active: isActive("/live-classes"),
-    //   roles: ["student", "tutor", "parent", "admin"],
-    // },
+    {
+      title: "Live Classes",
+      href: "/live-classes",
+      icon: <Calendar className="mr-2 h-4 w-4" />,
+      active: isActive("/live-classes"),
+      roles: ["student", "tutor", "parent", "admin"],
+    },
     {
       title: "Assessments",
       href: "/assessments",
@@ -102,10 +102,10 @@ export function MainNav() {
       roles: ["student", "admin"],
     },
     {
-      title: "Admin",
-      href: "/admin",
+      title: "Admin Dashboard",
+      href: "/admin-dashboard",
       icon: <LayoutDashboard className="mr-2 h-4 w-4" />,
-      active: isActive("/admin"),
+      active: isActive("/admin-dashboard"),
       roles: ["admin"],
     },
   ].filter((item) => item.roles.includes(user.role));

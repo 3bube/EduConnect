@@ -1,8 +1,8 @@
 import axios from "axios";
 
 const newRequest = axios.create({
-  baseURL: "https://educonnect-unzf.onrender.com/api",
-  // baseURL: "http://localhost:5000/api",
+  // baseURL: "https://educonnect-unzf.onrender.com/api",
+  baseURL: "http://localhost:5000/api",
   headers: {
     "Content-Type": "application/json",
   },

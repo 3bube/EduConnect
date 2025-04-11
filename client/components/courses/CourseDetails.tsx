@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
@@ -29,8 +29,8 @@ import { useQuery } from "@tanstack/react-query";
 import type { Course } from "@/api/course";
 import { enrollCourse } from "@/api/course";
 import { useAuth } from "@/context/AuthContext";
-import { useEffect } from "react";
 import { toast } from "sonner";
+import { getEnrolledCourses, EnrolledCourse, getCourseProgress } from "@/api/student";
 
 interface CourseDetailsProps {
   courseId: string;
@@ -49,6 +49,8 @@ export function CourseDetails({ courseId }: CourseDetailsProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("overview");
   const [isEnrolled, setIsEnrolled] = useState(false);
+  const [courseProgress, setCourseProgress] = useState<number>(0);
+  const [completedLessonsCount, setCompletedLessonsCount] = useState<number>(0);
   const { user, updateUserData } = useAuth();
 
   const {
@@ -69,26 +71,49 @@ export function CourseDetails({ courseId }: CourseDetailsProps) {
     },
   });
 
-  // use effect to get the user enrolled courses
+  // Fetch enrolled courses to check enrollment status
+  const { data: enrolledCourses = [] } = useQuery<EnrolledCourse[]>({
+    queryKey: ["enrolledCourses"],
+    queryFn: getEnrolledCourses,
+    enabled: !!user?._id,
+  });
+  
+  // Fetch user-specific progress for this course
+  const { data: courseProgressData } = useQuery({
+    queryKey: ["courseProgress", courseId],
+    queryFn: async () => {
+      try {
+        return await getCourseProgress(courseId);
+      } catch (error) {
+        console.error("Error fetching course progress:", error);
+        return null;
+      }
+    },
+    enabled: !!user?._id && isEnrolled,
+    refetchOnWindowFocus: false,
+  });
+
+  // use effect to check if user is enrolled
   useEffect(() => {
-    if (user) {
-      const enrolledCourses = user.enrolledCourses || [];
-      console.log("User enrolled courses:", JSON.stringify(enrolledCourses));
-      console.log("Looking for course ID:", courseId);
+    if (user && enrolledCourses.length > 0) {
+      // Find the enrolled course that matches the current courseId
+      const enrolledCourse = enrolledCourses.find(
+        (course) => course._id === courseId
+      );
 
-      // Check if the user is enrolled in this course
-      const isEnrolled = enrolledCourses.some((course) => {
-        // Handle both cases where _id could be a string or an object with _id property
-        const courseId1 = typeof course === "string" ? course : course._id;
-        const match = courseId1 === courseId;
-        console.log(`Comparing ${courseId1} with ${courseId}: ${match}`);
-        return match;
-      });
-
-      console.log("Final isEnrolled value:", isEnrolled);
-      setIsEnrolled(isEnrolled);
+      const isUserEnrolled = !!enrolledCourse;
+      setIsEnrolled(isUserEnrolled);
     }
-  }, [user, courseId]);
+  }, [user, courseId, enrolledCourses]);
+  
+  // Update progress from the course progress data
+  useEffect(() => {
+    if (courseProgressData) {
+      console.log("Course progress data:", courseProgressData);
+      setCourseProgress(courseProgressData.progressPercentage || 0);
+      setCompletedLessonsCount(courseProgressData.completedLessonsCount || 0);
+    }
+  }, [courseProgressData]);
 
   if (isLoading) {
     return <div className="text-center py-8">Loading course details...</div>;
@@ -102,23 +127,12 @@ export function CourseDetails({ courseId }: CourseDetailsProps) {
     );
   }
 
-  // Calculate total lessons and completed lessons
+  // Calculate total lessons
   const totalLessons =
     course.modules?.reduce(
       (total: number, module: any) => total + (module.lessons?.length || 0),
       0
     ) || 0;
-
-  const completedLessons =
-    course.modules?.reduce(
-      (total: number, module: any) =>
-        total +
-        (module.lessons?.filter((lesson: any) => lesson.completed)?.length ||
-          0),
-      0
-    ) || 0;
-
-  // const isComplete = (completedLessons / totalLessons) * 100 === 100
 
   const handleEnroll = async () => {
     try {
@@ -276,7 +290,7 @@ export function CourseDetails({ courseId }: CourseDetailsProps) {
                   </div>
                   {isEnrolled && (
                     <div className="text-sm text-muted-foreground">
-                      {completedLessons} of {totalLessons} completed
+                      {completedLessonsCount} of {totalLessons} completed
                     </div>
                   )}
                 </div>
@@ -385,17 +399,23 @@ export function CourseDetails({ courseId }: CourseDetailsProps) {
                       <div>
                         <div className="mb-2 flex items-center justify-between text-sm">
                           <span>Your progress</span>
-                          <span className="font-medium">
-                            {Math.round(
-                              (completedLessons / totalLessons) * 100
-                            )}
-                            %
-                          </span>
+                          <span className="font-medium">{courseProgress}%</span>
                         </div>
-                        <Progress
-                          value={(completedLessons / totalLessons) * 100}
-                          className="h-2"
-                        />
+                        <Progress value={courseProgress} className="h-2" />
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          {completedLessonsCount} of {totalLessons} lessons
+                          completed
+                        </p>
+                        {courseProgressData?.lastAccessed && (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            Last accessed: {new Date(courseProgressData.lastAccessed).toLocaleString()}
+                          </p>
+                        )}
+                        {courseProgressData && courseProgressData.timeSpent && courseProgressData.timeSpent > 0 && (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            Time spent: {Math.round(courseProgressData.timeSpent)} minutes
+                          </p>
+                        )}
                       </div>
                       <Button
                         className="w-full"

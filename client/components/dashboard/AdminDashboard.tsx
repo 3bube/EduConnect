@@ -15,7 +15,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useToast } from "@/components/ui/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search, Plus, Edit, Trash2, UserPlus, BookOpen, Users } from "lucide-react";
-// import Link from "next/link";
 
 // Import admin API functions
 import { 
@@ -24,10 +23,12 @@ import {
   AdminStats as Stats,
   getAllUsersAlt as getAllUsers, 
   getAllCoursesAdmin as getAllCourses,
-  getAllLessonsAlt as getAllLessons,
   createUser,
   deleteUser,
-  updateCourseFeaturedStatus
+  updateCourseFeaturedStatus,
+  createCourse,
+  updateCourse,
+  deleteCourse
 } from "@/api/admin";
 
 export function AdminDashboard() {
@@ -52,6 +53,26 @@ export function AdminDashboard() {
     activeTutors: 0,
     completedCourses: 0,
     featuredCourses: 0
+  });
+  const [isAddCourseDialogOpen, setIsAddCourseDialogOpen] = useState(false);
+  const [newCourseData, setNewCourseData] = useState({
+    title: "",
+    description: "",
+    category: "",
+    level: "beginner",
+    price: 0,
+    featured: false
+  });
+  
+  const [isEditCourseDialogOpen, setIsEditCourseDialogOpen] = useState(false);
+  const [editCourseData, setEditCourseData] = useState({
+    _id: "",
+    title: "",
+    description: "",
+    category: "",
+    level: "beginner",
+    price: 0,
+    featured: false
   });
 
   useEffect(() => {
@@ -88,8 +109,7 @@ export function AdminDashboard() {
         const coursesData = await getAllCourses();
         setCourses(coursesData);
 
-        // We'll load lessons data when needed for the lessons tab
-        await getAllLessons();
+        // No need to load lessons data anymore since we removed that tab
 
         setLoading(false);
       } catch (error) {
@@ -110,7 +130,7 @@ export function AdminDashboard() {
     };
   }, [user, router, toast]);
   
-  // Calculate stats whenever users or courses change
+  // Update stats whenever users or courses change
   useEffect(() => {
     const activeStudents = users.filter(user => user.role === 'student' || user.role === 'both').length;
     const activeTutors = users.filter(user => user.role === 'tutor' || user.role === 'both').length;
@@ -235,6 +255,111 @@ export function AdminDashboard() {
     }
   };
 
+  // Handle adding a new course
+  const handleAddCourse = async () => {
+    try {
+      // Use the admin API to create a course
+      const newCourse = await createCourse({
+        title: newCourseData.title,
+        description: newCourseData.description,
+        category: newCourseData.category,
+        level: newCourseData.level,
+        price: newCourseData.price,
+        featured: newCourseData.featured
+      });
+      
+      setCourses([...courses, newCourse]);
+      setIsAddCourseDialogOpen(false);
+      setNewCourseData({
+        title: "",
+        description: "",
+        category: "",
+        level: "beginner",
+        price: 0,
+        featured: false
+      });
+
+      toast({
+        title: "Course Added",
+        description: `${newCourse.title} has been added successfully.`,
+      });
+    } catch (error) {
+      console.error('Error adding course:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : 'Failed to add course',
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handle deleting a course
+  const handleDeleteCourse = async (courseId: string) => {
+    try {
+      // Use the admin API to delete a course
+      await deleteCourse(courseId);
+      
+      setCourses(courses.filter((course) => course._id !== courseId));
+      toast({
+        title: "Course Deleted",
+        description: "The course has been deleted successfully.",
+      });
+    } catch (error) {
+      console.error('Error deleting course:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : 'Failed to delete course',
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handle editing a course
+  const handleEditCourse = (course: Course) => {
+    setEditCourseData({
+      _id: course._id,
+      title: course.title,
+      description: course.description || "",
+      category: course.category || "",
+      level: course.level || "beginner",
+      price: course.price || 0,
+      featured: course.featured || false
+    });
+    setIsEditCourseDialogOpen(true);
+  };
+
+  // Handle submitting course edits
+  const handleUpdateCourse = async () => {
+    try {
+      // Use the admin API to update the course
+      const updatedCourse = await updateCourse(editCourseData._id, {
+        title: editCourseData.title,
+        description: editCourseData.description,
+        category: editCourseData.category,
+        level: editCourseData.level,
+        price: editCourseData.price,
+        featured: editCourseData.featured
+      });
+      
+      setCourses(courses.map(course => 
+        course._id === editCourseData._id ? updatedCourse : course
+      ));
+      setIsEditCourseDialogOpen(false);
+
+      toast({
+        title: "Course Updated",
+        description: `${updatedCourse.title} has been updated successfully.`,
+      });
+    } catch (error) {
+      console.error('Error updating course:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : 'Failed to update course',
+        variant: "destructive",
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="container mx-auto py-10">
@@ -297,8 +422,6 @@ export function AdminDashboard() {
         <TabsList className="mb-4">
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="courses">Courses</TabsTrigger>
-          <TabsTrigger value="lessons">Lessons</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
         {/* Users Tab */}
@@ -426,7 +549,11 @@ export function AdminDashboard() {
                         <TableCell>{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
-                            <Button variant="ghost" size="icon">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleEditCourse(course)}
+                            >
                               <Edit className="h-4 w-4" />
                             </Button>
                             <Button
@@ -470,10 +597,89 @@ export function AdminDashboard() {
                       onChange={(e) => setSearchQuery(e.target.value)}
                     />
                   </div>
-                  <Button>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Course
-                  </Button>
+                  <Dialog open={isAddCourseDialogOpen} onOpenChange={setIsAddCourseDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Course
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Add New Course</DialogTitle>
+                        <DialogDescription>
+                          Create a new course in the system.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                          <Label htmlFor="course-title">Title</Label>
+                          <Input
+                            id="course-title"
+                            value={newCourseData.title}
+                            onChange={(e) => setNewCourseData({ ...newCourseData, title: e.target.value })}
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="course-description">Description</Label>
+                          <Input
+                            id="course-description"
+                            value={newCourseData.description}
+                            onChange={(e) => setNewCourseData({ ...newCourseData, description: e.target.value })}
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="course-category">Category</Label>
+                          <Input
+                            id="course-category"
+                            value={newCourseData.category}
+                            onChange={(e) => setNewCourseData({ ...newCourseData, category: e.target.value })}
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="course-level">Level</Label>
+                          <Select
+                            value={newCourseData.level}
+                            onValueChange={(value) => setNewCourseData({ ...newCourseData, level: value })}
+                          >
+                            <SelectTrigger id="course-level">
+                              <SelectValue placeholder="Select level" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="beginner">Beginner</SelectItem>
+                              <SelectItem value="intermediate">Intermediate</SelectItem>
+                              <SelectItem value="advanced">Advanced</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="course-price">Price ($)</Label>
+                          <Input
+                            id="course-price"
+                            type="number"
+                            value={newCourseData.price.toString()}
+                            onChange={(e) => setNewCourseData({ ...newCourseData, price: Number(e.target.value) })}
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input 
+                            type="checkbox" 
+                            id="course-featured"
+                            checked={newCourseData.featured}
+                            onChange={(e) => setNewCourseData({ ...newCourseData, featured: e.target.checked })}
+                            className="h-4 w-4"
+                          />
+                          <Label htmlFor="course-featured">Featured Course</Label>
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsAddCourseDialogOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button onClick={handleAddCourse}>Add Course</Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
                 </div>
               </div>
               <CardDescription>
@@ -516,10 +722,18 @@ export function AdminDashboard() {
                             >
                               {course.featured ? "Unfeature" : "Feature"}
                             </Button>
-                            <Button variant="ghost" size="icon">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleEditCourse(course)}
+                            >
                               <Edit className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDeleteCourse(course._id)}
+                            >
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
@@ -538,126 +752,86 @@ export function AdminDashboard() {
             </CardContent>
           </Card>
         </TabsContent>
-
-        {/* Lessons Tab */}
-        <TabsContent value="lessons">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Lesson Management</CardTitle>
-                <div className="flex gap-2">
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      type="search"
-                      placeholder="Search lessons..."
-                      className="w-[250px] pl-8"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                  </div>
-                  <Button>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Lesson
-                  </Button>
-                </div>
-              </div>
-              <CardDescription>
-                Manage course lessons and their content.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="mb-4">
-                <Label htmlFor="course-filter">Filter by Course</Label>
-                <Select defaultValue="all">
-                  <SelectTrigger id="course-filter" className="w-full md:w-[300px] mt-1">
-                    <SelectValue placeholder="Select course" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Courses</SelectItem>
-                    {courses.map((course) => (
-                      <SelectItem key={course._id} value={course._id}>
-                        {course.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Title</TableHead>
-                    <TableHead>Course</TableHead>
-                    <TableHead>Duration</TableHead>
-                    <TableHead>Order</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {/* Lesson data will be loaded dynamically when the API is ready */}
-                  <TableRow>
-                    <TableCell className="font-medium">Introduction to Programming Basics</TableCell>
-                    <TableCell>Introduction to Programming</TableCell>
-                    <TableCell>45 minutes</TableCell>
-                    <TableCell>1</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="icon">
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        {/* Settings Tab */}
-        <TabsContent value="settings">
-          <Card>
-            <CardHeader>
-              <CardTitle>System Settings</CardTitle>
-              <CardDescription>
-                Configure system-wide settings and preferences.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="site-name">Site Name</Label>
-                <Input id="site-name" defaultValue="EduConnect" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="support-email">Support Email</Label>
-                <Input id="support-email" type="email" defaultValue="support@educonnect.com" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="max-file-size">Maximum Upload File Size (MB)</Label>
-                <Input id="max-file-size" type="number" defaultValue="50" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="maintenance-mode">Maintenance Mode</Label>
-                <Select defaultValue="off">
-                  <SelectTrigger id="maintenance-mode">
-                    <SelectValue placeholder="Select option" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="off">Off</SelectItem>
-                    <SelectItem value="on">On</SelectItem>
-                    <SelectItem value="scheduled">Scheduled</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button>Save Settings</Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
+
+      {/* Edit Course Dialog */}
+      <Dialog open={isEditCourseDialogOpen} onOpenChange={setIsEditCourseDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Course</DialogTitle>
+            <DialogDescription>
+              Update course information.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="edit-course-title">Title</Label>
+              <Input
+                id="edit-course-title"
+                value={editCourseData.title}
+                onChange={(e) => setEditCourseData({ ...editCourseData, title: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-course-description">Description</Label>
+              <Input
+                id="edit-course-description"
+                value={editCourseData.description}
+                onChange={(e) => setEditCourseData({ ...editCourseData, description: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-course-category">Category</Label>
+              <Input
+                id="edit-course-category"
+                value={editCourseData.category}
+                onChange={(e) => setEditCourseData({ ...editCourseData, category: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-course-level">Level</Label>
+              <Select
+                value={editCourseData.level}
+                onValueChange={(value) => setEditCourseData({ ...editCourseData, level: value })}
+              >
+                <SelectTrigger id="edit-course-level">
+                  <SelectValue placeholder="Select level" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="beginner">Beginner</SelectItem>
+                  <SelectItem value="intermediate">Intermediate</SelectItem>
+                  <SelectItem value="advanced">Advanced</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-course-price">Price ($)</Label>
+              <Input
+                id="edit-course-price"
+                type="number"
+                value={editCourseData.price.toString()}
+                onChange={(e) => setEditCourseData({ ...editCourseData, price: Number(e.target.value) })}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <input 
+                type="checkbox" 
+                id="edit-course-featured"
+                checked={editCourseData.featured}
+                onChange={(e) => setEditCourseData({ ...editCourseData, featured: e.target.checked })}
+                className="h-4 w-4"
+              />
+              <Label htmlFor="edit-course-featured">Featured Course</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditCourseDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateCourse}>Update Course</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

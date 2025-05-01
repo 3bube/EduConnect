@@ -447,7 +447,7 @@ exports.getQuestion = (0, handler_1.handleAsync)((req, res, next) => __awaiter(v
 }));
 // get results for an assessment submission
 exports.getAssessmentResults = (0, handler_1.handleAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
+    var _a, _b;
     if (!req.userId) {
         return res.status(401).json({ message: "Unauthorized" });
     }
@@ -511,11 +511,19 @@ exports.getAssessmentResults = (0, handler_1.handleAsync)((req, res, next) => __
             if (categoryScore < 50)
                 weaknesses.push(category);
         });
+        // Check if the user has a certificate for this assessment
+        let certificate = null;
+        if (isPassed) {
+            certificate = yield certificate_model_1.default.findOne({
+                userId: req.userId,
+                assessmentId: assessment._id,
+            }).lean();
+        }
         // Prepare final response
         const results = {
             assessmentId: assessment._id,
             title: assessment.title,
-            courseTitle: assessment.course || "No course",
+            courseTitle: ((_b = assessment.course) === null || _b === void 0 ? void 0 : _b.title) || "No course",
             submittedAt: userSubmission.submittedAt,
             timeSpent: userSubmission.timeSpent,
             score: correctAnswers, // Actual score based on correct answers
@@ -531,6 +539,15 @@ exports.getAssessmentResults = (0, handler_1.handleAsync)((req, res, next) => __
                 weaknesses,
                 recommendations: weaknesses.map((w) => `Review concepts related to ${w}`),
             },
+            certificate: certificate
+                ? {
+                    id: certificate._id,
+                    title: certificate.title,
+                    credentialId: certificate.credentialId,
+                    issueDate: certificate.issueDate,
+                    grade: certificate.grade,
+                }
+                : null,
         };
         return res.status(200).json(results);
     }

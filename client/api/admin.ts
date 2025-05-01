@@ -114,17 +114,79 @@ export const getAllLessons = async (): Promise<Lesson[]> => {
 // For now, we'll simulate these API calls with the existing endpoints
 // In a real implementation, you would create proper admin endpoints in the backend
 
-// Fallback implementations that use existing endpoints
-export const getAllUsersAlt = async (): Promise<User[]> => {
+// Create a new course (admin only)
+export const createCourse = async (courseData: {
+  title: string;
+  description: string;
+  category: string;
+  level: string;
+  price: number;
+  featured: boolean;
+}): Promise<Course> => {
   try {
-    // This would typically be an admin-specific endpoint
-    const response = await requestHandler<User[]>(
-      newRequest.get("/users")
+    const response = await requestHandler<Course>(
+      newRequest.post("/courses", courseData)
     );
     return response;
   } catch (error) {
+    throw error instanceof Error ? error : new Error("Failed to create course");
+  }
+};
+
+// Update a course (admin only)
+export const updateCourse = async (
+  courseId: string,
+  courseData: {
+    title?: string;
+    description?: string;
+    category?: string;
+    level?: string;
+    price?: number;
+    featured?: boolean;
+  }
+): Promise<Course> => {
+  try {
+    const response = await requestHandler<Course>(
+      newRequest.put(`/courses/${courseId}`, courseData)
+    );
+    return response;
+  } catch (error) {
+    throw error instanceof Error ? error : new Error("Failed to update course");
+  }
+};
+
+// Delete a course (admin only)
+export const deleteCourse = async (courseId: string): Promise<{ message: string }> => {
+  try {
+    const response = await requestHandler<{ message: string }>(
+      newRequest.delete(`/courses/${courseId}`)
+    );
+    return response;
+  } catch (error) {
+    throw error instanceof Error ? error : new Error("Failed to delete course");
+  }
+};
+
+// Fallback implementations that use existing endpoints
+export const getAllUsersAlt = async (): Promise<User[]> => {
+  try {
+    // Try the admin endpoint first
+    try {
+      const response = await requestHandler<User[]>(
+        newRequest.get("/admin/users")
+      );
+      return response;
+    } catch (error) {
+      // If admin endpoint fails, fall back to regular endpoint
+      console.log("Admin endpoint failed, falling back to regular endpoint", error);
+      const response = await requestHandler<User[]>(
+        newRequest.get("/users")
+      );
+      return response;
+    }
+  } catch (error) {
     console.error("Error fetching users:", error);
-    // Return empty array if the endpoint doesn't exist yet
+    // Return empty array if both endpoints fail
     return [];
   }
 };
@@ -143,14 +205,23 @@ export const getAllCoursesAdmin = async (): Promise<Course[]> => {
 
 export const getAllLessonsAlt = async (): Promise<Lesson[]> => {
   try {
-    // This would typically be an admin-specific endpoint
-    const response = await requestHandler<Lesson[]>(
-      newRequest.get("/lessons")
-    );
-    return response;
+    // Try the admin endpoint first
+    try {
+      const response = await requestHandler<Lesson[]>(
+        newRequest.get("/admin/lessons")
+      );
+      return response;
+    } catch (error) {
+      // If admin endpoint fails, fall back to regular endpoint
+      console.log("Admin endpoint failed, falling back to regular endpoint", error);
+      const response = await requestHandler<Lesson[]>(
+        newRequest.get("/lessons")
+      );
+      return response;
+    }
   } catch (error) {
     console.error("Error fetching lessons:", error);
-    // Return empty array if the endpoint doesn't exist yet
+    // Return empty array if both endpoints fail
     return [];
   }
 };

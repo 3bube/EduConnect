@@ -18,3 +18,4 @@ __exportStar(require("./user.interface"), exports);
 __exportStar(require("./model.interface"), exports);
 __exportStar(require("./assignment.interface"), exports);
 __exportStar(require("./assessments.interface"), exports);
+__exportStar(require("./live-class.interface"), exports);

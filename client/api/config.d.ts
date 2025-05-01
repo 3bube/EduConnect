@@ -1,4 +1,4 @@
-declare module './config' {
+declare module '@/api/config' {
   const config: {
     baseURL: string;
     headers: {

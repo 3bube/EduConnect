@@ -34,48 +34,30 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importStar(require("mongoose"));
-const CourseProgressSchema = new mongoose_1.Schema({
-    userId: {
-        type: mongoose_1.Schema.Types.ObjectId,
-        ref: "User",
-        required: true,
+// Create participant schema for nested participants in live class
+const ParticipantSchema = new mongoose_1.Schema({
+    id: { type: String, required: true },
+    name: { type: String, required: true },
+    joinedAt: { type: Date, default: Date.now }
+});
+// Create Live Class Schema
+const LiveClassSchema = new mongoose_1.Schema({
+    title: { type: String, required: true },
+    description: { type: String, required: true },
+    subject: { type: String, required: true },
+    startTime: { type: Date, required: true },
+    endTime: { type: Date },
+    isLive: { type: Boolean, default: false },
+    instructor: {
+        id: { type: String, required: true },
+        name: { type: String, required: true },
+        avatar: { type: String }
     },
-    courseId: {
-        type: mongoose_1.Schema.Types.ObjectId,
-        ref: "Course",
-        required: true,
-    },
-    completedLessons: [
-        {
-            type: String, // Changed to String to handle non-ObjectId lesson IDs
-        },
-    ],
-    completedAssignments: [
-        {
-            type: mongoose_1.Schema.Types.ObjectId,
-            ref: "Assignment",
-        },
-    ],
-    lastAccessed: {
-        type: Date,
-        default: Date.now,
-    },
-    timeSpent: {
-        type: Number,
-        default: 0,
-    },
-    startDate: {
-        type: Date,
-        default: Date.now,
-    },
-    progress: {
-        type: Number,
-        default: 0,
-        min: 0,
-        max: 100,
-    },
+    participants: [ParticipantSchema],
+    courseId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Course' },
+    meetingUrl: { type: String, required: true },
+    meetingId: { type: String, required: true },
+    maxParticipants: { type: Number, default: 100 }
 }, { timestamps: true });
-// Create a compound index for efficient queries
-CourseProgressSchema.index({ userId: 1, courseId: 1 }, { unique: true });
-const CourseProgress = mongoose_1.default.model("CourseProgress", CourseProgressSchema);
-exports.default = CourseProgress;
+const LiveClass = mongoose_1.default.model("LiveClass", LiveClassSchema);
+exports.default = LiveClass;

@@ -6,6 +6,11 @@ import Assessment from "../models/assessment.models";
 import { ExtendedRequest } from "../middleware/auth.middleware";
 import { handleAsync } from "../utils/handler";
 import CourseProgress from "../models/courseProgress.model";
+import {
+  updateUserCourseProgress,
+  getUserCourseProgress,
+  calculateCourseProgress,
+} from "../utils/progress.utils";
 
 // Get student dashboard data
 export const getStudentDashboard = handleAsync(
@@ -125,51 +130,24 @@ export const updateLessonProgress = handleAsync(
     );
 
     try {
-      // Find existing progress for this specific user and course
-      let progress = await CourseProgress.findOne({
-        userId: userId,
-        courseId: courseId,
-      });
+      // Use the utility function to update progress
+      const progress = await updateUserCourseProgress(
+        userId,
+        courseId,
+        lessonId
+      );
 
-      // If no progress record exists, create one
-      if (!progress) {
-        console.log(
-          `Creating new progress record for user ${userId} and course ${courseId}`
-        );
-        progress = await CourseProgress.create({
-          userId,
-          courseId,
-          completedLessons: [new mongoose.Types.ObjectId(lessonId)],
-          timeSpent: 0,
-          lastAccessed: new Date(),
-          startDate: new Date(),
-        });
-      } else {
-        // Add lesson to completed lessons if not already completed
-        const lessonObjectId = new mongoose.Types.ObjectId(lessonId);
-
-        // Check if lesson is already in completed lessons
-        const alreadyCompleted = progress.completedLessons.some(
-          (id) => id.toString() === lessonObjectId.toString()
-        );
-
-        if (!alreadyCompleted) {
-          console.log(
-            `Adding lesson ${lessonId} to completed lessons for user ${userId}`
-          );
-          progress.completedLessons.push(lessonObjectId);
-          progress.lastAccessed = new Date();
-          await progress.save();
-        } else {
-          console.log(`Lesson ${lessonId} already completed by user ${userId}`);
-        }
-      }
+      // Get the course to determine total lessons
+      const course = await Course.findById(courseId);
+      const totalLessons = course?.lessons?.length || 0;
 
       res.status(200).json({
         message: "Progress updated successfully",
         progress: {
           courseId: progress.courseId,
           completedLessonsCount: progress.completedLessons.length,
+          totalLessons,
+          progressPercentage: progress.progress,
           timeSpent: progress.timeSpent,
         },
       });
@@ -189,30 +167,58 @@ export const updateAssignmentProgress = handleAsync(
     const { courseId, assignmentId } = req.params;
     const userId = req.userId;
 
-    let progress = await CourseProgress.findOne({ userId, courseId });
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
 
-    // If no progress record exists, create one
-    if (!progress) {
-      progress = await CourseProgress.create({
+    try {
+      // Find or create progress record
+      let progress = await CourseProgress.findOne({
         userId,
         courseId,
-        completedAssignments: [new mongoose.Types.ObjectId(assignmentId)],
-        timeSpent: 0,
       });
-    } else {
-      // Add assignment to completed assignments if not already completed
+
+      if (!progress) {
+        progress = new CourseProgress({
+          userId,
+          courseId,
+          completedLessons: [],
+          completedAssignments: [],
+          progress: 0,
+          timeSpent: 0,
+          lastAccessed: new Date(),
+          startDate: new Date(),
+        });
+      }
+
+      // Add assignment to completed assignments if not already there
       const assignmentObjectId = new mongoose.Types.ObjectId(assignmentId);
       if (
-        !progress.completedAssignments.some((id) =>
-          id.equals(assignmentObjectId)
+        !progress.completedAssignments.some(
+          (id) => id.toString() === assignmentObjectId.toString()
         )
       ) {
         progress.completedAssignments.push(assignmentObjectId);
+        progress.lastAccessed = new Date();
         await progress.save();
       }
-    }
 
-    res.status(200).json({ message: "Progress updated", progress });
+      res.status(200).json({
+        message: "Assignment progress updated",
+        progress: {
+          courseId: progress.courseId,
+          completedAssignmentsCount: progress.completedAssignments.length,
+          completedLessonsCount: progress.completedLessons.length,
+          progressPercentage: progress.progress,
+        },
+      });
+    } catch (error) {
+      console.error("Error updating assignment progress:", error);
+      res.status(500).json({
+        message: "Failed to update assignment progress",
+        error: (error as Error).message,
+      });
+    }
   }
 );
 
@@ -223,21 +229,51 @@ export const updateTimeSpent = handleAsync(
     const { timeSpent } = req.body; // Time spent in minutes
     const userId = req.userId;
 
-    let progress = await CourseProgress.findOne({ userId, courseId });
-
-    if (!progress) {
-      progress = await CourseProgress.create({
-        userId,
-        courseId,
-        timeSpent,
-      });
-    } else {
-      progress.timeSpent += timeSpent;
-      progress.lastAccessed = new Date();
-      await progress.save();
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
     }
 
-    res.status(200).json({ message: "Time spent updated", progress });
+    try {
+      // Find or create progress record
+      let progress = await CourseProgress.findOne({
+        userId,
+        courseId,
+      });
+
+      if (!progress) {
+        progress = new CourseProgress({
+          userId,
+          courseId,
+          completedLessons: [],
+          completedAssignments: [],
+          progress: 0,
+          timeSpent,
+          lastAccessed: new Date(),
+          startDate: new Date(),
+        });
+        await progress.save();
+      } else {
+        progress.timeSpent += timeSpent;
+        progress.lastAccessed = new Date();
+        await progress.save();
+      }
+
+      res.status(200).json({
+        message: "Time spent updated",
+        progress: {
+          courseId: progress.courseId,
+          timeSpent: progress.timeSpent,
+          completedLessonsCount: progress.completedLessons.length,
+          progressPercentage: progress.progress,
+        },
+      });
+    } catch (error) {
+      console.error("Error updating time spent:", error);
+      res.status(500).json({
+        message: "Failed to update time spent",
+        error: (error as Error).message,
+      });
+    }
   }
 );
 
@@ -293,7 +329,9 @@ export const createDemoCourseProgress = handleAsync(
       if (existingProgress) {
         // Update existing progress but only if it's empty
         if (existingProgress.completedLessons.length === 0) {
-          existingProgress.completedLessons = completedLessons;
+          existingProgress.completedLessons = completedLessons.map((id) =>
+            id.toString()
+          );
           existingProgress.timeSpent = timeSpent;
           await existingProgress.save();
           progressEntries.push(existingProgress);
@@ -364,9 +402,9 @@ async function getEnrolledCoursesWithProgress(userId: string) {
       // Only count completed lessons if progress record exists for this user and course
       const completedLessons = progress ? progress.completedLessons.length : 0;
 
-      const progressPercentage = Math.round(
-        (completedLessons / totalLessons) * 100
-      );
+      // Use the progress value from the CourseProgress record if available
+      // This ensures we're using the stored progress value that's specific to this user
+      const progressPercentage = progress ? progress.progress : 0;
 
       // Find next lesson (first uncompleted lesson)
       let nextLesson = null;

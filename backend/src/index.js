@@ -17,17 +17,24 @@ const express_1 = __importDefault(require("express"));
 const db_1 = __importDefault(require("../config/db"));
 const cors_1 = __importDefault(require("cors"));
 const morgan_1 = __importDefault(require("morgan"));
+const http_1 = __importDefault(require("http"));
 const auth_route_1 = __importDefault(require("../routes/auth.route"));
 const course_route_1 = __importDefault(require("../routes/course.route"));
 const assessments_route_1 = __importDefault(require("../routes/assessments.route"));
 const certificates_route_1 = __importDefault(require("../routes/certificates.route"));
 const student_routes_1 = __importDefault(require("../routes/student.routes"));
 const study_material_routes_1 = __importDefault(require("../routes/study-material.routes"));
+const live_class_routes_1 = __importDefault(require("../routes/live-class.routes"));
+const admin_route_1 = __importDefault(require("../routes/admin.route"));
+const socket_service_1 = __importDefault(require("../services/socket.service"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const mongoose_1 = __importDefault(require("mongoose"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
+const server = http_1.default.createServer(app);
 const PORT = (_a = process.env.PORT) !== null && _a !== void 0 ? _a : 5000;
+// Initialize Socket.io
+socket_service_1.default.initialize(server);
 // Middleware
 app.use(express_1.default.json());
 app.use((0, morgan_1.default)("dev")); // Logging middleware
@@ -54,10 +61,13 @@ app.use("/api/assessments", assessments_route_1.default);
 app.use("/api/certificates", certificates_route_1.default);
 app.use("/api/student", student_routes_1.default);
 app.use("/api/study-materials", study_material_routes_1.default);
+app.use("/api/live-classes", live_class_routes_1.default);
+app.use("/api/admin", admin_route_1.default);
 // Start Server
 try {
-    app.listen(PORT, () => __awaiter(void 0, void 0, void 0, function* () {
+    server.listen(PORT, () => __awaiter(void 0, void 0, void 0, function* () {
         console.log(`🚀 Server is running on http://localhost:${PORT}`);
+        console.log(`🔌 Socket.io initialized and ready for real-time connections`);
         yield (0, db_1.default)();
     }));
 }

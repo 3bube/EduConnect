@@ -18,7 +18,10 @@ export interface IAssessmentSubmission {
 
 export interface IAssessment extends Document {
   title: string;
-  course: Types.ObjectId;
+  course: {
+    _id: Types.ObjectId;
+    title: string;
+  };
   description: string;
   type: "quiz" | "exam" | "assignment";
   questions: Types.ObjectId[];

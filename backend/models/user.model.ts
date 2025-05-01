@@ -3,8 +3,7 @@ import { IUser } from "../interface";
 import bcrypt from "bcrypt";
 
 // Log the available roles
-const VALID_ROLES = ["student", "tutor", "both"] as const;
-console.log("Valid roles:", VALID_ROLES);
+const VALID_ROLES = ["student", "tutor", "both", "admin"] as const;
 
 const UserSchema = new Schema<IUser>(
   {

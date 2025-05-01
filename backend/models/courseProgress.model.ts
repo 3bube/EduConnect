@@ -1,13 +1,16 @@
 import mongoose, { Schema } from "mongoose";
 
-interface ICourseProgress {
+export interface ICourseProgress {
   userId: mongoose.Types.ObjectId;
   courseId: mongoose.Types.ObjectId;
-  completedLessons: mongoose.Types.ObjectId[];
+  completedLessons: string[]; // Changed to string[] to handle non-ObjectId lesson IDs
   completedAssignments: mongoose.Types.ObjectId[];
+  progress: number; // percentage of course completed
   lastAccessed: Date;
   timeSpent: number; // in minutes
   startDate: Date;
+  updatedAt?: Date;
+  createdAt?: Date;
 }
 
 const CourseProgressSchema = new Schema<ICourseProgress>(
@@ -24,8 +27,7 @@ const CourseProgressSchema = new Schema<ICourseProgress>(
     },
     completedLessons: [
       {
-        type: Schema.Types.ObjectId,
-        ref: "Lesson",
+        type: String, // Changed to String to handle non-ObjectId lesson IDs
       },
     ],
     completedAssignments: [
@@ -45,6 +47,12 @@ const CourseProgressSchema = new Schema<ICourseProgress>(
     startDate: {
       type: Date,
       default: Date.now,
+    },
+    progress: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 100,
     },
   },
   { timestamps: true }

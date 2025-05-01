@@ -5,7 +5,7 @@ export interface IUser extends Document {
   name: string;
   email: string;
   password: string;
-  role: "student" | "tutor" | "both"; // Updated role types
+  role: "student" | "tutor" | "both" | "admin"; // Updated role types
   enrolledCourses: Types.ObjectId[] | string; // Array of ObjectId references to Course model
   certificates: Types.ObjectId[]; // Array of ObjectId references to Certificate model
   comparePassword(candidatePassword: string): Promise<boolean>;

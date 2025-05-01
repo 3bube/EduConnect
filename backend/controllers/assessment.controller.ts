@@ -647,11 +647,20 @@ export const getAssessmentResults = handleAsync(
         if (categoryScore < 50) weaknesses.push(category);
       });
 
+      // Check if the user has a certificate for this assessment
+      let certificate = null;
+      if (isPassed) {
+        certificate = await Certificate.findOne({
+          userId: req.userId,
+          assessmentId: assessment._id,
+        }).lean();
+      }
+
       // Prepare final response
       const results = {
         assessmentId: assessment._id,
         title: assessment.title,
-        courseTitle: assessment.course || "No course",
+        courseTitle: assessment.course?.title || "No course",
         submittedAt: userSubmission.submittedAt,
         timeSpent: userSubmission.timeSpent,
         score: correctAnswers, // Actual score based on correct answers
@@ -669,6 +678,15 @@ export const getAssessmentResults = handleAsync(
             (w) => `Review concepts related to ${w}`
           ),
         },
+        certificate: certificate
+          ? {
+              id: certificate._id,
+              title: certificate.title,
+              credentialId: certificate.credentialId,
+              issueDate: certificate.issueDate,
+              grade: certificate.grade,
+            }
+          : null,
       };
 
       return res.status(200).json(results);

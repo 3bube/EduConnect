@@ -1,113 +1,58 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
-const courses_controller_1 = require("../controllers/courses.controller");
 const auth_middleware_1 = require("../middleware/auth.middleware");
+const adminController = __importStar(require("../controllers/admin.controller"));
 const router = express_1.default.Router();
-
-// Admin middleware to check if user is admin
-const adminMiddleware = (req, res, next) => {
-    if (req.user && (req.user.role === 'admin' || req.user.role === 'both')) {
-        next();
-    } else {
-        res.status(403).json({ message: 'Admin access required' });
-    }
-};
-
-// Admin user management routes
-router.get("/users", auth_middleware_1.authMiddleware, adminMiddleware, async (req, res, next) => {
-    try {
-        // Fetch all users from database
-        const users = await req.app.locals.db.collection('users').find({}).toArray();
-        res.json(users);
-    } catch (error) {
-        next(error);
-    }
-});
-
-router.post("/users", auth_middleware_1.authMiddleware, adminMiddleware, async (req, res, next) => {
-    try {
-        const { name, email, password, role } = req.body;
-        
-        // Basic validation
-        if (!name || !email || !password || !role) {
-            return res.status(400).json({ message: "All fields are required" });
-        }
-        
-        // Check if user already exists
-        const existingUser = await req.app.locals.db.collection('users').findOne({ email });
-        if (existingUser) {
-            return res.status(400).json({ message: "User with this email already exists" });
-        }
-        
-        // Create new user
-        const newUser = {
-            name,
-            email,
-            password, // Note: In a real implementation, you'd hash the password
-            role,
-            createdAt: new Date()
-        };
-        
-        const result = await req.app.locals.db.collection('users').insertOne(newUser);
-        res.status(201).json({ ...newUser, _id: result.insertedId });
-    } catch (error) {
-        next(error);
-    }
-});
-
-router.delete("/users/:userId", auth_middleware_1.authMiddleware, adminMiddleware, async (req, res, next) => {
-    try {
-        const { userId } = req.params;
-        
-        // Delete user
-        const result = await req.app.locals.db.collection('users').deleteOne({ _id: userId });
-        
-        if (result.deletedCount === 0) {
-            return res.status(404).json({ message: "User not found" });
-        }
-        
-        res.json({ message: "User deleted successfully" });
-    } catch (error) {
-        next(error);
-    }
-});
-
-// Admin course management routes
-router.patch("/courses/:courseId", auth_middleware_1.authMiddleware, adminMiddleware, async (req, res, next) => {
-    try {
-        const { courseId } = req.params;
-        const { featured } = req.body;
-        
-        // Update course
-        const result = await req.app.locals.db.collection('courses').updateOne(
-            { _id: courseId },
-            { $set: { featured } }
-        );
-        
-        if (result.matchedCount === 0) {
-            return res.status(404).json({ message: "Course not found" });
-        }
-        
-        const updatedCourse = await req.app.locals.db.collection('courses').findOne({ _id: courseId });
-        res.json(updatedCourse);
-    } catch (error) {
-        next(error);
-    }
-});
-
-// Admin lesson management routes
-router.get("/lessons", auth_middleware_1.authMiddleware, adminMiddleware, async (req, res, next) => {
-    try {
-        // Fetch all lessons from database
-        const lessons = await req.app.locals.db.collection('lessons').find({}).toArray();
-        res.json(lessons);
-    } catch (error) {
-        next(error);
-    }
-});
-
+// Utility to wrap async handlers and ensure they return void
+function handleAsync(fn) {
+    return (req, res, next) => {
+        Promise.resolve(fn(req, res, next)).catch(next);
+    };
+}
+// User management
+router.get("/users", auth_middleware_1.authMiddleware, handleAsync(adminController.getAllUsers));
+router.post("/users", auth_middleware_1.authMiddleware, handleAsync(adminController.createUser));
+router.delete("/users/:userId", auth_middleware_1.authMiddleware, handleAsync(adminController.deleteUser));
+// Course management
+router.delete("/courses/:courseId", auth_middleware_1.authMiddleware, handleAsync(adminController.deleteCourse));
+router.patch("/courses/:courseId", auth_middleware_1.authMiddleware, handleAsync(adminController.updateCourse));
+// Lesson management
+router.get("/lessons", auth_middleware_1.authMiddleware, handleAsync(adminController.getAllLessons));
 exports.default = router;

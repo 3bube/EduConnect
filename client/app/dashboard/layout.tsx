@@ -1,5 +1,4 @@
 import type React from "react";
-import { MainNav } from "@/components/layout/MainNav";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -14,7 +13,6 @@ export default function DashboardLayout({
 }) {
   return (
     <div className="flex min-h-screen flex-col">
-      <MainNav />
       <main className="flex-1">{children}</main>
     </div>
   );

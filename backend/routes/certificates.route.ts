@@ -1,12 +1,14 @@
-import { Router, Request, Response, NextFunction } from "express";
-import { authMiddleware } from "../middleware/auth.middleware";
+import express, { Request, Response, NextFunction } from "express";
 import {
   generateCertificate,
   getUserCertificates,
   getCertificateById,
+  verifyCertificate,
+  generateCertificateFromAssessment
 } from "../controllers/certificate.controller";
+import { authMiddleware } from "../middleware/auth.middleware";
 
-const router = Router();
+const router = express.Router();
 
 // Generate a certificate
 router.post(
@@ -31,5 +33,15 @@ router.get(
   (req: Request, res: Response, next: NextFunction) =>
     getCertificateById(req, res, next)
 );
+
+// Generate a certificate for a specific assessment submission
+router.post(
+  "/generate-from-assessment/:assessmentId", 
+  authMiddleware, 
+  generateCertificateFromAssessment
+);
+
+// Public route to verify certificate by credential ID
+router.get("/verify/:credentialId", verifyCertificate);
 
 export default router;

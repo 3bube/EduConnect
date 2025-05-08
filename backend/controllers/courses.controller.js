@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getResource = exports.markLessonComplete = exports.getLessonContent = exports.enrollCourse = exports.getCourseById = exports.getInstructorCourses = exports.getAllCourses = exports.createCourse = void 0;
+exports.getInstructorStudents = exports.getResource = exports.markLessonComplete = exports.getLessonContent = exports.enrollCourse = exports.getCourseById = exports.getInstructorCourses = exports.getAllCourses = exports.createCourse = void 0;
 const course_model_1 = __importDefault(require("../models/course.model"));
 const user_model_1 = __importDefault(require("../models/user.model"));
 const mongoose_1 = __importDefault(require("mongoose"));
@@ -496,3 +496,38 @@ const getResource = (req, res, next) => __awaiter(void 0, void 0, void 0, functi
     }
 });
 exports.getResource = getResource;
+// Get students for instructor
+const getInstructorStudents = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        if (!req.userId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+        const instructorId = req.params.id;
+        // Find courses taught by this instructor
+        const courses = yield course_model_1.default.find({ "instructor.id": instructorId });
+        const courseIds = courses.map(c => c._id);
+        // Find progress records for those courses
+        const records = yield courseProgress_model_1.default.find({ courseId: { $in: courseIds } })
+            .populate("userId", "name email");
+        // Map to student info
+        const students = records.map(r => {
+            var _a;
+            const course = courses.find(c => c._id.equals(r.courseId));
+            return {
+                id: r.userId._id,
+                name: r.userId.name,
+                email: r.userId.email,
+                course: (course === null || course === void 0 ? void 0 : course.title) || "",
+                enrollmentDate: ((_a = r.createdAt) === null || _a === void 0 ? void 0 : _a.toISOString().split('T')[0]) || "",
+                progress: r.progress,
+            };
+        });
+        res.status(200).json(students);
+    }
+    catch (error) {
+        console.error("Error fetching students:", error);
+        res.status(500).json({ message: error.message || "Failed to fetch students" });
+    }
+});
+exports.getInstructorStudents = getInstructorStudents;

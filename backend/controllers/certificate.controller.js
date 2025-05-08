@@ -12,11 +12,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verifyCertificate = exports.getCertificateById = exports.getUserCertificates = exports.generateCertificate = void 0;
+exports.generateCertificateFromAssessment = exports.verifyCertificate = exports.getCertificateById = exports.getUserCertificates = exports.generateCertificate = void 0;
 const certificate_model_1 = __importDefault(require("../models/certificate.model"));
 const user_model_1 = __importDefault(require("../models/user.model"));
 const assessment_models_1 = __importDefault(require("../models/assessment.models"));
 const handler_1 = require("../utils/handler");
+const course_model_1 = __importDefault(require("../models/course.model"));
 // Generate a certificate upon successful assessment completion
 exports.generateCertificate = (0, handler_1.handleAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
@@ -51,7 +52,7 @@ exports.generateCertificate = (0, handler_1.handleAsync)((req, res, next) => __a
             return res.status(404).json({ message: "Assessment not found" });
         }
         // Find the user's submission
-        const userSubmission = (_a = assessment.submissions) === null || _a === void 0 ? void 0 : _a.find((submission) => submission.userId.toString() === req.userId);
+        const userSubmission = (_a = assessment.submissions) === null || _a === void 0 ? void 0 : _a.find((submission) => submission.user.toString() === req.userId);
         if (!userSubmission) {
             return res.status(400).json({
                 message: "You haven't completed this assessment yet",
@@ -137,11 +138,26 @@ exports.getCertificateById = (0, handler_1.handleAsync)((req, res, next) => __aw
     }
     const { id } = req.params;
     try {
-        const certificate = yield certificate_model_1.default.findById(id)
-            .populate("courseId", "title description image level")
-            .populate("assessmentId", "title type")
-            .populate("userId", "name email")
-            .lean();
+        console.log(`Looking up certificate with id/credentialId: ${id}`);
+        // Check if the id is a valid MongoDB ObjectId
+        const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(id);
+        let certificate;
+        if (isValidObjectId) {
+            console.log('Looking up certificate by _id');
+            certificate = yield certificate_model_1.default.findById(id)
+                .populate("courseId", "title description image level")
+                .populate("assessmentId", "title type")
+                .populate("userId", "name email")
+                .lean();
+        }
+        else {
+            console.log('Looking up certificate by credentialId');
+            certificate = yield certificate_model_1.default.findOne({ credentialId: id })
+                .populate("courseId", "title description image level")
+                .populate("assessmentId", "title type")
+                .populate("userId", "name email")
+                .lean();
+        }
         if (!certificate) {
             return res.status(404).json({ message: "Certificate not found" });
         }
@@ -150,14 +166,14 @@ exports.getCertificateById = (0, handler_1.handleAsync)((req, res, next) => __aw
         if (!user) {
             return res.status(404).json({ message: "User not found" });
         }
-        // Check if the certificate belongs to the user or if user is an admin
-        if (certificate.userId._id.toString() !== req.userId &&
-            user.role !== "student" &&
-            user.role !== "tutor") {
+        // Check if the certificate belongs to the user or if user is an admin/tutor
+        if (certificate.userId._id.toString() !== req.userId && user.role !== "admin") {
+            console.log(`Access denied: Certificate userId ${certificate.userId._id} does not match request userId ${req.userId}`);
             return res
                 .status(403)
                 .json({ message: "Not authorized to view this certificate" });
         }
+        console.log(`Certificate found and authorized for user ${req.userId}`);
         return res.status(200).json({ certificate });
     }
     catch (error) {
@@ -210,6 +226,131 @@ exports.verifyCertificate = (0, handler_1.handleAsync)((req, res, next) => __awa
             valid: false,
             message: "Failed to verify certificate",
             error: error.message,
+        });
+    }
+}));
+// Generate a certificate for a specific assessment
+exports.generateCertificateFromAssessment = (0, handler_1.handleAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    if (!req.userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
+    const { assessmentId } = req.params;
+    console.log(`Manual certificate generation requested for assessment ${assessmentId} by user ${req.userId}`);
+    try {
+        // 1. Find the assessment
+        const assessment = yield assessment_models_1.default.findById(assessmentId)
+            .populate("course")
+            .lean();
+        if (!assessment) {
+            return res.status(404).json({ message: "Assessment not found" });
+        }
+        console.log("assessment", assessment);
+        // 2. Find the user's submission for this assessment
+        const userSubmission = (_a = assessment.submissions) === null || _a === void 0 ? void 0 : _a.find(sub => { var _a; return ((_a = sub.userId) === null || _a === void 0 ? void 0 : _a.toString()) === req.userId; });
+        if (!userSubmission) {
+            return res.status(404).json({
+                message: "No submission found for this assessment",
+                assessmentId
+            });
+        }
+        console.log("userSubmission", userSubmission);
+        // 3. Check if the user has passed the assessment
+        const passed = userSubmission.score >= assessment.passingScore;
+        if (!passed) {
+            return res.status(400).json({
+                message: "Cannot generate certificate - assessment not passed",
+                score: userSubmission.score,
+                requiredScore: assessment.passingScore,
+                passed
+            });
+        }
+        console.log("checking for exisiting certificate");
+        // 4. Check if a certificate already exists
+        const existingCertificate = yield certificate_model_1.default.findOne({
+            userId: req.userId,
+            assessmentId: assessment._id
+        });
+        if (existingCertificate) {
+            return res.status(200).json({
+                message: "Certificate already exists",
+                certificate: existingCertificate
+            });
+        }
+        console.log("existingCertificate", existingCertificate);
+        // 5. Extract course ID
+        let courseId;
+        if (typeof assessment.course === 'object' && assessment.course) {
+            courseId = assessment.course;
+        }
+        else if (assessment.course) {
+            courseId = assessment.course;
+        }
+        else if (assessment.course) {
+            courseId = assessment.course;
+        }
+        else {
+            return res.status(400).json({
+                message: "No course found for this assessment"
+            });
+        }
+        // 6. Get the course details
+        const course = yield course_model_1.default.findById(courseId).lean();
+        if (!course) {
+            return res.status(404).json({
+                message: "Course not found",
+                courseId
+            });
+        }
+        console.log("course", course);
+        // 7. Create the certificate
+        // Determine grade based on score
+        let grade = "C";
+        if (userSubmission.score >= 90)
+            grade = "A";
+        else if (userSubmission.score >= 80)
+            grade = "B";
+        else if (userSubmission.score >= 70)
+            grade = "C";
+        else if (userSubmission.score >= 60)
+            grade = "D";
+        else
+            grade = "F";
+        // Get skills from course tags or default to empty array
+        const skills = course.tags || [];
+        // Create new certificate
+        const certificate = new certificate_model_1.default({
+            userId: req.userId,
+            courseId: course._id,
+            assessmentId: assessment._id,
+            title: `${course.title} Certificate`,
+            issueDate: new Date(),
+            // Set expiry to 3 years from now
+            expiryDate: new Date(Date.now() + 3 * 365 * 24 * 60 * 60 * 1000),
+            grade,
+            score: userSubmission.score,
+            skills,
+            issuer: "EduConnect",
+            status: "issued",
+            credentialId: `CERT-${course.title.substring(0, 3).toUpperCase()}-${new Date().getFullYear()}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`
+        });
+        yield certificate.save();
+        // 8. Update user's certificates array
+        yield user_model_1.default.findByIdAndUpdate(req.userId, {
+            $addToSet: { certificates: certificate._id },
+        });
+        console.log(`Certificate generated successfully: ${certificate._id}`);
+        // 9. Return the certificate
+        return res.status(201).json({
+            message: "Certificate generated successfully",
+            certificate
+        });
+    }
+    catch (error) {
+        console.error("Error generating certificate:", error);
+        return res.status(500).json({
+            message: "Failed to generate certificate",
+            error: error.message
         });
     }
 }));

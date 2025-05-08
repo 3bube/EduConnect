@@ -13,6 +13,8 @@ router.get("/", courses_controller_1.getAllCourses);
 router.post("/", auth_middleware_1.authMiddleware, (req, res, next) => (0, courses_controller_1.createCourse)(req, res, next));
 // Get instructor's courses - must be before /:courseId to avoid being treated as a courseId
 router.get("/instructor/:id", auth_middleware_1.authMiddleware, (req, res, next) => (0, courses_controller_1.getInstructorCourses)(req, res, next));
+// Get students for instructor
+router.get("/instructor/:id/students", auth_middleware_1.authMiddleware, (req, res, next) => (0, courses_controller_1.getInstructorStudents)(req, res, next));
 // Course details route
 router.get("/:courseId", courses_controller_1.getCourseById);
 // Course enrollment and lesson routes

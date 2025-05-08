@@ -16,6 +16,7 @@ export interface Certificate {
   };
   title: string;
   issueDate: string;
+  issuedDate?: string; // Alternative field name that might be used
   expiryDate?: string;
   credentialId: string;
   grade: string;
@@ -23,6 +24,16 @@ export interface Certificate {
   skills: string[];
   issuer: string;
   status: "issued" | "revoked";
+  // Additional fields for compatibility
+  course?: {
+    _id: string;
+    title: string;
+    image?: string;
+  };
+  assessmentTitle?: string;
+  instructor?: {
+    name: string;
+  };
 }
 
 export interface CertificateResponse {
@@ -62,4 +73,10 @@ export const getCertificateById = (id: string) =>
 export const verifyCertificate = (credentialId: string) =>
   requestHandler<VerificationResponse>(
     newRequest.get(`/certificates/verify/${credentialId}`)
+  );
+
+// Generate a certificate for a specific assessment
+export const generateCertificateFromAssessment = (assessmentId: string) =>
+  requestHandler<{ message: string; certificate: Certificate }>(
+    newRequest.post(`/certificates/generate-from-assessment/${assessmentId}`)
   );

@@ -8,6 +8,7 @@ import {
   markLessonComplete,
   getInstructorCourses,
   getResource,
+  getInstructorStudents,
 } from "../controllers/courses.controller";
 import { authMiddleware } from "../middleware/auth.middleware";
 
@@ -30,6 +31,14 @@ router.get(
   authMiddleware,
   (req: Request, res: Response, next: NextFunction) =>
     getInstructorCourses(req, res, next)
+);
+
+// Get students for instructor
+router.get(
+  "/instructor/:id/students",
+  authMiddleware,
+  (req: Request, res: Response, next: NextFunction) =>
+    getInstructorStudents(req, res, next)
 );
 
 // Course details route

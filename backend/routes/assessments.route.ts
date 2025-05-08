@@ -2,13 +2,14 @@ import express, { Request, Response, NextFunction } from "express";
 import {
   GetAssessment,
   GetAssessmentById,
+  GetAssessmentStatus,
   StartAssessment,
   SubmitAssessment,
-  GetAssessmentResults,
   getAssessmentForUser,
   CreateAssessment,
   getAssessmentResults,
   getQuestion,
+  getTutorAssessments,
 } from "../controllers/assessment.controller";
 import { authMiddleware } from "../middleware/auth.middleware";
 
@@ -25,10 +26,19 @@ router.get(
     getAssessmentForUser(req, res, next)
 );
 
-// Assessment by ID route
-router.get("/:id", GetAssessmentById);
+// Get all assessments created by a tutor
+router.get("/tutor/:tutorId", getTutorAssessments);
 
-// Get results for an assessment
+// Assessment by ID route
+router.get("/:id", authMiddleware, GetAssessmentById);
+
+// Get questions for an assessment
+router.get("/:id/questions", authMiddleware, getQuestion);
+
+// Get assessment status
+router.get("/:id/status", authMiddleware, GetAssessmentStatus);
+
+// Get assessment results
 router.get("/:id/results", authMiddleware, getAssessmentResults);
 
 // Protected routes - require authentication

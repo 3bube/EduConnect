@@ -70,16 +70,49 @@ export interface CourseProgressResponse {
     timeSpent: number;
     completedLessons: string[];
     lastAccessed?: string;
+    nextLesson?: {
+      id: string;
+      title: string;
+    };
   };
 }
 
 export const getStudentDashboard = async (): Promise<StudentDashboardData> => {
   try {
+    // Get base dashboard data
     const response = await requestHandler<StudentDashboardData>(
       newRequest.get("/student/dashboard")
     );
+    
+    // For each enrolled course, fetch accurate progress data
+    if (response.enrolledCourses && response.enrolledCourses.length > 0) {
+      const coursesWithProgress = await Promise.all(
+        response.enrolledCourses.map(async (course) => {
+          try {
+            // Get detailed progress data for this course
+            const progressData = await getCourseProgress(course._id);
+            
+            // Update course with real progress data
+            return {
+              ...course,
+              progress: progressData.progressPercentage,
+              completedLessons: progressData.completedLessonsCount,
+              nextLesson: progressData.nextLesson || course.nextLesson,
+            };
+          } catch (err) {
+            console.error(`Error getting progress for course ${course._id}:`, err);
+            return course; // Return original course if progress fetch fails
+          }
+        })
+      );
+      
+      // Update the response with enhanced course data
+      response.enrolledCourses = coursesWithProgress;
+    }
+    
     return response;
   } catch (error) {
+    console.error("Failed to fetch dashboard data:", error);
     throw new Error(
       error instanceof Error ? error.message : "Failed to fetch dashboard data"
     );

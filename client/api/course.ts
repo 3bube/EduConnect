@@ -50,6 +50,8 @@ export interface Course {
     totalPoints: number;
     dueDate?: string;
   }[];
+  enrolled?: boolean;
+  nextLesson?: { id: string; title: string };
 }
 
 export interface CourseResponse {
@@ -75,13 +77,17 @@ export const getAllCourses = async (): Promise<CourseResponse> => {
 
 export const getCourseById = async (courseId: string): Promise<Course> => {
   try {
-    const response = await requestHandler<Course>(
+    // API returns { course: Course, enrolled: boolean }
+    const response = await requestHandler<{ course: Course; enrolled?: boolean }>(
       newRequest.get(`/courses/${courseId}`)
     );
-    if (!response) {
-      throw new Error("Course not found");
-    }
-    return response;
+    const course = response.course;
+    if (!course) throw new Error("Course not found");
+    
+    // Set enrolled status from API response
+    course.enrolled = response.enrolled === true;
+    
+    return course;
   } catch (error) {
     throw new Error(
       error instanceof Error ? error.message : "Failed to fetch course"
@@ -95,7 +101,7 @@ export const enrollCourse = async (
   try {
     console.log(`Making API request to enroll in course: ${courseId}`);
 
-    // Make the request to the backend
+    // Make the request to the backend - fix endpoint to match backend structure
     const response = await newRequest.post(`/courses/${courseId}/enroll`);
 
     console.log("Received response from enroll course API:", response.data);

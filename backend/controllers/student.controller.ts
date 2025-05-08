@@ -32,6 +32,7 @@ export const getStudentDashboard = handleAsync(
       model: Course,
     });
 
+
     // Get upcoming assignments
     const upcomingAssignments = await getUpcomingAssignments(req.userId);
 

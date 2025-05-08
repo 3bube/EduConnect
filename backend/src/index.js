@@ -25,7 +25,6 @@ const certificates_route_1 = __importDefault(require("../routes/certificates.rou
 const student_routes_1 = __importDefault(require("../routes/student.routes"));
 const study_material_routes_1 = __importDefault(require("../routes/study-material.routes"));
 const live_class_routes_1 = __importDefault(require("../routes/live-class.routes"));
-const admin_route_1 = __importDefault(require("../routes/admin.route"));
 const socket_service_1 = __importDefault(require("../services/socket.service"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const mongoose_1 = __importDefault(require("mongoose"));
@@ -55,6 +54,8 @@ app.get("/api/db", (req, res) => {
         connected: mongoose_1.default.connection.readyState === 1,
     });
 });
+const admin_route_1 = __importDefault(require("../routes/admin.route"));
+app.use("/api/admin", admin_route_1.default);
 app.use("/api/auth", auth_route_1.default);
 app.use("/api/courses", course_route_1.default);
 app.use("/api/assessments", assessments_route_1.default);
@@ -62,7 +63,6 @@ app.use("/api/certificates", certificates_route_1.default);
 app.use("/api/student", student_routes_1.default);
 app.use("/api/study-materials", study_material_routes_1.default);
 app.use("/api/live-classes", live_class_routes_1.default);
-app.use("/api/admin", admin_route_1.default);
 // Start Server
 try {
     server.listen(PORT, () => __awaiter(void 0, void 0, void 0, function* () {

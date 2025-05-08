@@ -270,7 +270,7 @@ export function StudentDashboard() {
       </div>
 
       {/* Live Classes */}
-      <div>
+      {/* <div>
         <h2 className="mb-4 text-2xl font-bold tracking-tight">
           Live Classes
         </h2>
@@ -361,7 +361,7 @@ export function StudentDashboard() {
             ))}
           </div>
         )}
-      </div>
+      </div> */}
 
       {/* Recommended Courses */}
       <div>

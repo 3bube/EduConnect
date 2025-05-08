@@ -86,3 +86,26 @@ export const getCurrentUser = handleAsync(
     res.status(200).json({ user });
   }
 );
+
+// Update current user profile
+export const updateCurrentUser = handleAsync(
+  async (req: ExtendedRequest, res: Response, next: NextFunction) => {
+    if (!req.userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    const updates = req.body;
+    try {
+      const user = await User.findByIdAndUpdate(req.userId, updates, {
+        new: true,
+        runValidators: true,
+      }).select("-password");
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      res.status(200).json({ user });
+    } catch (error: any) {
+      console.error("Error updating user profile:", error);
+      res.status(500).json({ message: error.message || "Failed to update profile" });
+    }
+  }
+);

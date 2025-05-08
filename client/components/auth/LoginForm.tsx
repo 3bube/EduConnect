@@ -91,15 +91,7 @@ export default function LoginPage() {
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="password">Password</Label>
-              <Link
-                href="/reset-password"
-                className="text-sm text-primary hover:underline"
-              >
-                Forgot password?
-              </Link>
-            </div>
+
             <Input
               id="password"
               type="password"
@@ -120,13 +112,13 @@ export default function LoginPage() {
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-gray-300 dark:border-gray-700"></div>
             </div>
-            <div className="relative flex justify-center text-sm">
+            {/* <div className="relative flex justify-center text-sm">
               <span className="bg-white px-2 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
                 Or continue with
               </span>
-            </div>
+            </div> */}
           </div>
-
+{/* 
           <div className="mt-6 grid grid-cols-2 gap-3">
             <Button
               variant="outline"
@@ -144,7 +136,7 @@ export default function LoginPage() {
               <FaFacebook className="h-4 w-4" />
               <span>Facebook</span>
             </Button>
-          </div>
+          </div> */}
         </div>
       </CardContent>
 

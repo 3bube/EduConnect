@@ -18,6 +18,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   BookOpen,
   FileUp,
   MessageSquare,
@@ -593,22 +600,21 @@ export function TutorDashboard() {
                   Create, manage, and grade assessments
                 </CardDescription>
               </div>
-              <Button size="sm" asChild>
-                <Link href="/assessments/create">
-                  <Plus className="mr-1 h-4 w-4" />
-                  Create Assessment
-                </Link>
-              </Button>
+              <div className="flex flex-col gap-2">
+                <Button 
+                  size="sm" 
+                  asChild
+                >
+                  <Link href="/assessments/create?courseId=course1">
+                    <Plus className="mr-1 h-4 w-4" />
+                    Create Assessment
+                  </Link>
+                </Button>
+                <p className="text-xs text-muted-foreground">For Course: Introduction to Programming</p>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
-                <div>
-                  <h3 className="mb-3 font-medium">Pending Submissions</h3>
-                  <div className="space-y-3">
-                    {/* Add logic to fetch and display pending submissions */}
-                  </div>
-                </div>
-
                 <div className="flex flex-col gap-4">
                   <div className="flex justify-between items-center">
                     <h3 className="font-medium">Create New Assessment</h3>

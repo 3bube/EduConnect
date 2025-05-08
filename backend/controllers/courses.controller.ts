@@ -619,3 +619,44 @@ export const getResource = async (
       .json({ message: error.message || "Failed to fetch resource" });
   }
 };
+
+// Get students for instructor
+export const getInstructorStudents = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.userId) {
+      res.status(401).json({ message: "Unauthorized" });
+      return;
+    }
+    const instructorId = req.params.id;
+    // Find courses taught by this instructor
+    const courses = await Course.find({ "instructor.id": instructorId });
+    const courseIds = courses.map(c => c._id);
+    // Find progress records for those courses
+    const records = await CourseProgress.find({ courseId: { $in: courseIds } })
+      .populate("userId", "name email");
+    // Map to student info
+    const students = records.map(r => {
+      const course = courses.find(c => 
+        (c._id as mongoose.Types.ObjectId).equals(
+          r.courseId as mongoose.Types.ObjectId
+        )
+      );
+      return {
+        id: (r.userId as any)._id,
+        name: (r.userId as any).name,
+        email: (r.userId as any).email,
+        course: course?.title || "",
+        enrollmentDate: r.createdAt?.toISOString().split('T')[0] || "",
+        progress: r.progress,
+      };
+    });
+    res.status(200).json(students);
+  } catch (error: any) {
+    console.error("Error fetching students:", error);
+    res.status(500).json({ message: error.message || "Failed to fetch students" });
+  }
+};

@@ -9,11 +9,21 @@ export interface IAssessmentAnswer {
 }
 
 export interface IAssessmentSubmission {
+  _id?: Types.ObjectId;
   userId: Types.ObjectId;
+  assessment: Types.ObjectId;
+  user: Types.ObjectId;
   answers: IAssessmentAnswer[];
   score: number;
+  passed: boolean;
   timeSpent: number;
-  submittedAt: Date;
+  startTime: Date;
+  endTime: Date;
+  submittedAt: Date | undefined;
+  certificate?: {
+    _id: Types.ObjectId;
+    credentialId: string;
+  };
 }
 
 export interface IAssessment extends Document {
@@ -27,10 +37,11 @@ export interface IAssessment extends Document {
   questions: Types.ObjectId[];
   timeLimit: number;
   dueDate: string;
-  status: "not_started" | "in_progress" | "completed";
+  status: "not_started" | "in_progress" | "completed" | "published" | "draft";
   passingScore: number;
   category: string;
   submissions: IAssessmentSubmission[];
   createdBy: Types.ObjectId;
   averageScore: number; // Virtual field
+  userScore?: number; // User's score for this assessment
 }

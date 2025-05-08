@@ -11,9 +11,15 @@ const router = express_1.default.Router();
 router.get("/", assessment_controller_1.GetAssessment);
 // User-specific assessments route - must come before /:id to avoid being treated as an ID parameter
 router.get("/user", auth_middleware_1.authMiddleware, (req, res, next) => (0, assessment_controller_1.getAssessmentForUser)(req, res, next));
+// Get all assessments created by a tutor
+router.get("/tutor/:tutorId", assessment_controller_1.getTutorAssessments);
 // Assessment by ID route
-router.get("/:id", assessment_controller_1.GetAssessmentById);
-// Get results for an assessment
+router.get("/:id", auth_middleware_1.authMiddleware, assessment_controller_1.GetAssessmentById);
+// Get questions for an assessment
+router.get("/:id/questions", auth_middleware_1.authMiddleware, assessment_controller_1.getQuestion);
+// Get assessment status
+router.get("/:id/status", auth_middleware_1.authMiddleware, assessment_controller_1.GetAssessmentStatus);
+// Get assessment results
 router.get("/:id/results", auth_middleware_1.authMiddleware, assessment_controller_1.getAssessmentResults);
 // Protected routes - require authentication
 router.post("/:id/start", auth_middleware_1.authMiddleware, (req, res, next) => (0, assessment_controller_1.StartAssessment)(req, res, next));

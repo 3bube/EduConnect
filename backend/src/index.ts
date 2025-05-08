@@ -48,6 +48,8 @@ app.get("/api/db", (req: Request, res: Response) => {
   });
 });
 
+import adminRoute from "../routes/admin.route";
+app.use("/api/admin", adminRoute);
 app.use("/api/auth", authRoute);
 app.use("/api/courses", courseRoute);
 app.use("/api/assessments", assessmentsRoute);

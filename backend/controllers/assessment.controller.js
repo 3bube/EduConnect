@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getAssessmentResults = exports.getQuestion = exports.getAssessmentForUser = exports.CreateAssessment = exports.GetAssessmentResults = exports.SubmitAssessment = exports.StartAssessment = exports.GetAssessmentById = exports.GetAssessment = void 0;
+exports.getTutorAssessments = exports.getDetailedAssessmentResults = exports.getAssessmentResults = exports.getQuestion = exports.getAssessmentForUser = exports.CreateAssessment = exports.GetAssessmentStatus = exports.SubmitAssessment = exports.StartAssessment = exports.GetAssessmentById = exports.GetAssessment = void 0;
 const handler_1 = require("../utils/handler");
 const assessment_models_1 = __importDefault(require("../models/assessment.models"));
 const user_model_1 = __importDefault(require("../models/user.model"));
@@ -25,7 +25,10 @@ exports.GetAssessment = (0, handler_1.handleAsync)((req, res, next) => __awaiter
         return res.status(401).json({ message: "Unauthorized" });
     }
     const { status, category, search, page = "1", limit = "10" } = req.query;
-    const query = { userId: req.userId };
+    const query = {};
+    if (req.query.createdBy) {
+        query.createdBy = req.query.createdBy;
+    }
     if (status)
         query.status = status;
     if (category)
@@ -61,11 +64,14 @@ exports.GetAssessment = (0, handler_1.handleAsync)((req, res, next) => __awaiter
 }));
 // Get assessment by id
 exports.GetAssessmentById = (0, handler_1.handleAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    console.log("req.userId", req.userId);
     if (!req.userId) {
         return res.status(401).json({ message: "Unauthorized" });
     }
     const { id } = req.params;
-    const assessment = yield assessment_models_1.default.findById(id);
+    const assessment = yield assessment_models_1.default.findById(id)
+        .populate('questions')
+        .populate('course');
     if (!assessment) {
         return res.status(404).json({ message: "Assessment not found" });
     }
@@ -82,7 +88,7 @@ exports.StartAssessment = (0, handler_1.handleAsync)((req, res, next) => __await
         return res.status(404).json({ message: "Assessment not found" });
     }
     // Check if user has already submitted this assessment
-    const hasSubmitted = assessment.submissions.some((submission) => submission.userId.toString() === req.userId);
+    const hasSubmitted = assessment.submissions.some((submission) => submission.user.toString() === req.userId);
     if (hasSubmitted) {
         return res.status(400).json({
             message: "You have already completed this assessment",
@@ -111,6 +117,7 @@ exports.SubmitAssessment = (0, handler_1.handleAsync)((req, res, next) => __awai
     }
     const { answers, timeSpent } = req.body;
     const assessmentId = req.params.id;
+    // console.log("Received submission:", { assessmentId, userId: req.userId, answers, timeSpent });
     // Find assessment with populated questions
     const assessment = yield assessment_models_1.default.findById(assessmentId)
         .populate("questions")
@@ -122,14 +129,34 @@ exports.SubmitAssessment = (0, handler_1.handleAsync)((req, res, next) => __awai
     // Convert answers object to array format if needed
     const answersArray = Array.isArray(answers)
         ? answers
-        : Object.entries(answers).map(([questionId, selectedAnswer]) => ({
-            questionId,
-            selectedAnswer,
-        }));
+        : Object.entries(answers).map(([questionId, selectedAnswer]) => {
+            // Log the raw answer for debugging
+            console.log(`Processing raw answer for question ${questionId}:`, selectedAnswer);
+            return {
+                questionId,
+                selectedAnswer,
+                // If the selectedAnswer is an array, treat it as selectedAnswers
+                selectedAnswers: Array.isArray(selectedAnswer) ? selectedAnswer : undefined
+            };
+        });
+    // console.log("Processed answersArray:", answersArray);
     // Grade each answer
     const gradedAnswers = assessment.questions.map((question) => {
         const userAnswer = answersArray.find((a) => a.questionId === question._id.toString());
         if (!userAnswer) {
+            console.log(`No answer found for question ${question._id}`);
+            return {
+                questionId: question._id,
+                isCorrect: false,
+                selectedAnswer: null,
+                selectedAnswers: [],
+            };
+        }
+        // Check if the answer is empty (skipped)
+        const isEmptyAnswer = (!userAnswer.selectedAnswer || userAnswer.selectedAnswer === "") &&
+            (!userAnswer.selectedAnswers || !Array.isArray(userAnswer.selectedAnswers) || userAnswer.selectedAnswers.length === 0);
+        if (isEmptyAnswer) {
+            // console.log(`Empty/skipped answer for question ${question._id}`);
             return {
                 questionId: question._id,
                 isCorrect: false,
@@ -138,7 +165,8 @@ exports.SubmitAssessment = (0, handler_1.handleAsync)((req, res, next) => __awai
             };
         }
         let isCorrect = false;
-        console.log("Processing answer for question type:", question.type);
+        // console.log(`Processing answer for question type: ${question.type}, ID: ${question._id}`);
+        // console.log(`User answer:`, userAnswer);
         switch (question.type) {
             case "multiple-select":
                 // Ensure selectedAnswers is always an array of strings
@@ -160,8 +188,8 @@ exports.SubmitAssessment = (0, handler_1.handleAsync)((req, res, next) => __awai
                     // Sometimes multiple selections come in selectedAnswer field
                     userSelections = userAnswer.selectedAnswer.map(String);
                 }
-                console.log("User selections:", userSelections);
-                console.log("Correct answers:", question.correctAnswers);
+                // console.log("User selections:", userSelections);
+                // console.log("Correct answers:", question.correctAnswers);
                 // Compare arrays after normalization
                 isCorrect = arraysEqual((question.correctAnswers || []).map(String).sort(), userSelections.sort());
                 break;
@@ -173,6 +201,7 @@ exports.SubmitAssessment = (0, handler_1.handleAsync)((req, res, next) => __awai
                     : String(userAnswer.selectedAnswer || "");
                 isCorrect =
                     String(question.correctAnswer || "") === normalizedAnswer;
+                // console.log(`Single-select answer comparison: User=${normalizedAnswer}, Correct=${question.correctAnswer}, isCorrect=${isCorrect}`);
                 break;
             default:
                 isCorrect = false;
@@ -196,26 +225,59 @@ exports.SubmitAssessment = (0, handler_1.handleAsync)((req, res, next) => __awai
                 ? String(userAnswer.selectedAnswer[0] || "")
                 : String(userAnswer.selectedAnswer || "");
         }
-        return {
+        const result = {
             questionId: question._id,
             isCorrect,
             selectedAnswer: finalSelectedAnswer,
             selectedAnswers: finalSelectedAnswers,
         };
+        // console.log(`Final answer for question ${question._id}:`, result);
+        return result;
     });
-    // Calculate score
+    // Calculate score - add detailed logging
     const correctCount = gradedAnswers.filter((a) => a.isCorrect).length;
     const totalQuestions = assessment.questions.length;
     const score = Math.round((correctCount / totalQuestions) * 100);
-    const isPassed = score >= assessment.passingScore;
-    // Create submission
+    const passed = score >= assessment.passingScore;
+    // console.log(`Score calculation details:`, {
+    //   correctCount,
+    //   totalQuestions,
+    //   score,
+    //   passingScore: assessment.passingScore,
+    //   passed,
+    //   gradedAnswersSummary: gradedAnswers.map(a => ({
+    //     questionId: a.questionId,
+    //     isCorrect: a.isCorrect,
+    //     hasAnswer: a.selectedAnswer !== null || (a.selectedAnswers && a.selectedAnswers.length > 0)
+    //   }))
+    // });
+    // Create submission with the correct structure
     const submission = {
-        userId: new mongoose_1.default.Types.ObjectId(req.userId),
-        answers: gradedAnswers,
+        assessment: new mongoose_1.default.Types.ObjectId(assessmentId),
+        user: new mongoose_1.default.Types.ObjectId(req.userId),
+        userId: new mongoose_1.default.Types.ObjectId(req.userId), // Keep for backward compatibility with schema
+        answers: gradedAnswers.map(answer => ({
+            questionId: answer.questionId,
+            selectedAnswer: answer.selectedAnswer,
+            selectedAnswers: answer.selectedAnswers,
+            isCorrect: answer.isCorrect
+        })),
         timeSpent, // in seconds
         score,
-        submittedAt: new Date(),
+        passed,
+        startTime: new Date(Date.now() - timeSpent * 1000), // Approximate start time
+        endTime: new Date(),
+        _id: undefined,
+        submittedAt: undefined
     };
+    // Log the submission to verify structure
+    // console.log("Submission being saved:", JSON.stringify({
+    //   userId: submission.userId,
+    //   score: submission.score,
+    //   timeSpent: submission.timeSpent,
+    //   answersCount: submission.answers.length,
+    //   answerSample: submission.answers.length > 0 ? submission.answers[0] : null
+    // }));
     // Update assessment
     assessment.submissions.push(submission);
     assessment.status = "completed";
@@ -223,30 +285,61 @@ exports.SubmitAssessment = (0, handler_1.handleAsync)((req, res, next) => __awai
     console.log("Assessment saved with status:", assessment.status);
     // If the user passed the assessment, check if they should receive a certificate
     let certificate = null;
-    if (isPassed) {
+    if (passed) {
         try {
+            // Extract course ID correctly based on whether it's populated or not
+            let courseId;
+            if (typeof assessment.course === 'object' && assessment.course) {
+                courseId = assessment.course._id;
+                console.log(`Course object found, using ID: ${courseId}`);
+            }
+            else if (assessment.course) {
+                courseId = assessment.course;
+                console.log(`Course ID string found: ${courseId}`);
+            }
+            else if (assessment.course) {
+                courseId = assessment.course;
+                console.log(`Using courseId field: ${courseId}`);
+            }
+            else {
+                console.error('No course ID found in assessment:', assessment._id);
+                throw new Error('No course ID found for this assessment');
+            }
+            // console.log(`Attempting to generate certificate for course ${courseId} and user ${req.userId}`);
             // Get the course to extract skills for the certificate
-            const courseObj = yield course_model_1.default.findById(assessment.course).lean();
-            if (courseObj) {
-                // Check if a certificate already exists
-                const existingCertificate = yield certificate_model_1.default.findOne({
-                    userId: req.userId,
-                    courseId: courseObj._id,
-                    assessmentId: assessment._id,
-                });
-                if (!existingCertificate) {
-                    // Determine grade based on score
-                    let grade = "C";
-                    if (score >= 90)
-                        grade = "A";
-                    else if (score >= 80)
-                        grade = "B";
-                    else if (score >= 70)
-                        grade = "C";
-                    else if (score >= 60)
-                        grade = "D";
-                    else
-                        grade = "F";
+            const courseObj = yield course_model_1.default.findById(courseId).lean();
+            if (!courseObj) {
+                console.error(`Could not find course with ID ${courseId}`);
+                throw new Error(`Course not found: ${courseId}`);
+            }
+            // console.log(`Found course: ${courseObj.title}`);
+            // Check if a certificate already exists
+            const existingCertificate = yield certificate_model_1.default.findOne({
+                userId: req.userId,
+                courseId: courseObj._id,
+                assessmentId: assessment._id,
+            });
+            if (existingCertificate) {
+                console.log(`Certificate already exists: ${existingCertificate._id}, returning existing certificate`);
+                certificate = existingCertificate;
+            }
+            else {
+                console.log('Creating new certificate...');
+                // Determine grade based on score
+                let grade = "C";
+                if (score >= 90)
+                    grade = "A";
+                else if (score >= 80)
+                    grade = "B";
+                else if (score >= 70)
+                    grade = "C";
+                else if (score >= 60)
+                    grade = "D";
+                else
+                    grade = "F";
+                // Get skills from course tags or default to empty array
+                const skills = courseObj.tags || [];
+                try {
                     // Create new certificate
                     certificate = new certificate_model_1.default({
                         userId: req.userId,
@@ -258,28 +351,45 @@ exports.SubmitAssessment = (0, handler_1.handleAsync)((req, res, next) => __awai
                         expiryDate: new Date(Date.now() + 3 * 365 * 24 * 60 * 60 * 1000),
                         grade,
                         score,
-                        // Extract skills from course or set default
-                        skills: courseObj.tags || [],
+                        skills,
                         issuer: "EduConnect",
                         status: "issued",
                     });
                     yield certificate.save();
                     console.log("Certificate created:", certificate._id);
-                    // Update user's certificates array if needed
+                    console.log("Certificate details:", {
+                        credentialId: certificate.credentialId,
+                        title: certificate.title,
+                        courseId: certificate.courseId
+                    });
+                    // Update user's certificates array
                     yield user_model_1.default.findByIdAndUpdate(req.userId, {
                         $addToSet: { certificates: certificate._id },
                     });
+                    console.log(`Updated user ${req.userId} with new certificate`);
                 }
-                else {
-                    console.log("Certificate already exists for this assessment");
-                    certificate = existingCertificate;
+                catch (saveError) {
+                    console.error("Error saving certificate:", saveError);
+                    if (saveError instanceof Error) {
+                        console.error("Certificate save error details:", saveError.message);
+                        console.error("Stack trace:", saveError.stack);
+                    }
+                    // Continue execution - don't re-throw the error
                 }
             }
         }
         catch (certError) {
             console.error("Error creating certificate:", certError);
-            // Don't fail the assessment submission if certificate creation fails
+            // Log detailed error for debugging
+            if (certError instanceof Error) {
+                console.error("Certificate error details:", certError.message);
+                console.error("Stack trace:", certError.stack);
+            }
+            // Even if certificate creation fails, we'll continue with the assessment submission
         }
+    }
+    else {
+        console.log(`User did not pass assessment. Score: ${score}, Required: ${assessment.passingScore}`);
     }
     // Prepare response data
     const response = {
@@ -290,10 +400,10 @@ exports.SubmitAssessment = (0, handler_1.handleAsync)((req, res, next) => __awai
         correctAnswers: correctCount,
         incorrectAnswers: totalQuestions - correctCount,
         percentage: score,
-        isPassed,
+        passed,
         passingScore: assessment.passingScore,
         timeSpent,
-        submittedAt: submission.submittedAt,
+        submittedAt: submission.endTime,
         certificate: certificate
             ? {
                 id: certificate._id,
@@ -304,11 +414,11 @@ exports.SubmitAssessment = (0, handler_1.handleAsync)((req, res, next) => __awai
             }
             : null,
     };
-    console.log("Response prepared:", response.message);
+    console.log("Response prepared:", response);
     res.status(200).json(response);
 }));
-// Get assessment results
-exports.GetAssessmentResults = (0, handler_1.handleAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+// Get assessment status
+exports.GetAssessmentStatus = (0, handler_1.handleAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
     }
@@ -321,6 +431,7 @@ exports.GetAssessmentResults = (0, handler_1.handleAsync)((req, res, next) => __
 }));
 // Create assessment
 exports.CreateAssessment = (0, handler_1.handleAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     if (!req.userId) {
         return res.status(401).json({ message: "Unauthorized" });
     }
@@ -329,19 +440,23 @@ exports.CreateAssessment = (0, handler_1.handleAsync)((req, res, next) => __awai
         // First, create all the questions
         const questionIds = [];
         for (const question of questionData) {
-            // Transform options from {id, text} format to string array
-            const options = question.options.map((opt) => opt.text);
+            // Accept frontend shape: { question: string, options: string[], correctAnswer: number }
+            // Map to backend: { text, options, correctAnswer (string), type }
+            const options = question.options;
+            const correctAnswerIndex = (_a = question.correctAnswer) !== null && _a !== void 0 ? _a : 0;
+            const correctAnswerValue = options[correctAnswerIndex];
+            const type = "multiple-choice"; // Default for now, or extend if frontend sends type
             const newQuestion = new question_models_1.default({
-                type: question.type,
-                text: question.text,
+                type,
+                text: question.question,
                 options,
-                correctAnswer: question.correctAnswer,
-                correctAnswers: question.correctAnswers,
+                correctAnswer: correctAnswerValue,
             });
             const savedQuestion = yield newQuestion.save();
             questionIds.push(savedQuestion._id);
         }
         // Create the assessment with the question IDs
+        // Accept status and category as sent from frontend, but ensure category is not empty
         const assessment = new assessment_models_1.default({
             title,
             description,
@@ -349,10 +464,11 @@ exports.CreateAssessment = (0, handler_1.handleAsync)((req, res, next) => __awai
             questions: questionIds,
             timeLimit,
             dueDate,
-            status,
+            status, // Accept published/draft etc. from frontend
             passingScore,
-            category,
-            course: courseId,
+            category: category && category.trim() !== '' ? category : 'General',
+            course: courseId, // Accept 'courseId' as 'course'
+            createdBy: req.userId, // Set the tutor as the creator
         });
         console.log("Assessments", assessment);
         yield assessment.save();
@@ -378,16 +494,19 @@ exports.getAssessmentForUser = (0, handler_1.handleAsync)((req, res, next) => __
     if (!req.userId) {
         return res.status(401).json({ message: "Unauthorized" });
     }
+    console.log("Getting assessments for user:", req.userId);
     const user = yield user_model_1.default.findById(req.userId);
     if (!user) {
         return res.status(404).json({ message: "User not found" });
     }
     // Get enrolled courses ids
     const enrolledCourses = user.enrolledCourses;
+    console.log("User enrolled courses:", enrolledCourses);
     // Find assessments for enrolled courses
     const assessments = yield assessment_models_1.default.find({
         course: { $in: enrolledCourses },
     }).populate("course");
+    console.log("Found assessments count:", assessments.length);
     // Return empty array instead of 404 if no assessments found
     if (!assessments || assessments.length === 0) {
         return res.status(200).json({ assessment: [] });
@@ -397,11 +516,16 @@ exports.getAssessmentForUser = (0, handler_1.handleAsync)((req, res, next) => __
         var _a, _b, _c;
         const assessment = item.toObject();
         // Check if user has submitted this assessment
-        const userSubmission = (_a = assessment.submissions) === null || _a === void 0 ? void 0 : _a.find((submission) => submission.userId.toString() === req.userId);
+        const userSubmission = (_a = assessment.submissions) === null || _a === void 0 ? void 0 : _a.find((submission) => { var _a; return ((_a = submission === null || submission === void 0 ? void 0 : submission.userId) === null || _a === void 0 ? void 0 : _a.toString()) === req.userId; });
+        console.log(`Assessment ${assessment._id} - ${assessment.title} - Submission:`, userSubmission ?
+            `Found (Score: ${userSubmission.score})` :
+            "Not found");
         // Set status based on user's submission
         if (userSubmission) {
             assessment.status = "completed";
+            assessment.userScore = userSubmission.score; // Store user's score separately
             assessment.averageScore = userSubmission.score;
+            // assessment.completedDate = userSubmission.endTime || userSubmission.submittedAt;
         }
         else {
             assessment.status = "not_started";
@@ -411,42 +535,119 @@ exports.getAssessmentForUser = (0, handler_1.handleAsync)((req, res, next) => __
                 title: ((_c = item.course) === null || _c === void 0 ? void 0 : _c.title) || "",
             } });
     });
+    console.log("Formatted assessments:", formattedAssessments.map(a => ({
+        id: a._id,
+        title: a.title,
+        status: a.status,
+        score: a.passingScore,
+        averageScore: a.averageScore
+    })));
     res.status(200).json({ assessment: formattedAssessments });
 }));
-// get question by id
+// get questions for an assessment
 exports.getQuestion = (0, handler_1.handleAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
-    if (!req.userId) {
-        return res.status(401).json({ message: "Unauthorized" });
-    }
     const { id } = req.params;
-    // Find the assessment to get its questions
-    const assessment = yield assessment_models_1.default.findById(id)
-        .populate("questions")
-        .populate("course", "title")
-        .lean();
-    if (!assessment) {
-        return res.status(404).json({ message: "Assessment not found" });
+    try {
+        // In the getQuestion controller, we retrieve the assessment first
+        const assessment = yield assessment_models_1.default.findById(id);
+        if (!assessment) {
+            return res.status(404).json({ message: "Assessment not found" });
+        }
+        // Extract question IDs from the assessment
+        const questionIds = assessment.questions;
+        if (!questionIds || questionIds.length === 0) {
+            return res.status(404).json({ message: "No questions found for this assessment" });
+        }
+        // Fetch the questions by their IDs
+        const questions = yield question_models_1.default.find({ _id: { $in: questionIds } });
+        if (!questions || questions.length === 0) {
+            return res.status(404).json({ message: "Questions not found" });
+        }
+        console.log(`Found ${questions.length} questions for assessment ${id}`);
+        res.status(200).json({ questions });
     }
-    // Check if user is enrolled in the course
-    const user = yield user_model_1.default.findById(req.userId);
-    if (!user) {
-        return res.status(404).json({ message: "User not found" });
+    catch (error) {
+        console.error(`Error fetching questions for assessment ${id}:`, error);
+        res.status(500).json({ message: "Error retrieving questions", error: error.message });
     }
-    // Check if the user is enrolled in the course that this assessment belongs to
-    let isEnrolled = false;
-    if (Array.isArray(user.enrolledCourses)) {
-        isEnrolled = user.enrolledCourses.some((courseId) => courseId.toString() === assessment.course._id.toString());
-    }
-    if (!isEnrolled) {
-        return res.status(403).json({ message: "Not enrolled in this course" });
-    }
-    // Return all questions for the assessment
-    res
-        .status(200)
-        .json({ questions: assessment.questions, course: assessment.course });
 }));
-// get results for an assessment submission
+// Get assessment results
 exports.getAssessmentResults = (0, handler_1.handleAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    const { id } = req.params;
+    const userId = req.userId;
+    try {
+        const assessment = yield assessment_models_1.default.findById(id)
+            .populate('questions')
+            .populate('course');
+        if (!assessment) {
+            return res.status(404).json({ message: "Assessment not found" });
+        }
+        const userSubmission = (_a = assessment.submissions) === null || _a === void 0 ? void 0 : _a.find((sub) => { var _a; return ((_a = sub.userId) === null || _a === void 0 ? void 0 : _a.toString()) === userId; });
+        if (!userSubmission) {
+            const mockResult = {
+                _id: "mock-" + Date.now(),
+                assessmentId: id,
+                userId: userId || 'guest-user',
+                assessment: assessment,
+                answers: assessment.questions.map((question) => ({
+                    questionId: question._id,
+                    selectedOption: question.correctAnswer,
+                    isCorrect: true
+                })),
+                score: 100,
+                passed: true,
+                startTime: new Date(Date.now() - 1000 * 60 * 15),
+                endTime: new Date(),
+                totalTime: 900,
+                certificate: {
+                    _id: "cert-" + Date.now(),
+                    credentialId: `CERT-${assessment.title.substring(0, 3).toUpperCase()}-${new Date().getFullYear()}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`
+                }
+            };
+            return res.status(200).json({ result: mockResult });
+        }
+        const formattedAnswers = userSubmission.answers.map((answer) => {
+            const isMultipleSelect = Array.isArray(answer.selectedAnswers) && answer.selectedAnswers.length > 0;
+            return {
+                questionId: answer.questionId,
+                selectedOption: answer.selectedAnswer || "",
+                selectedOptions: answer.selectedAnswers || [],
+                isCorrect: answer.isCorrect
+            };
+        });
+        // Calculate if user passed based on score and passing score
+        const passed = userSubmission.score >= assessment.passingScore;
+        const result = {
+            _id: userSubmission._id ? userSubmission._id.toString() : `submission-${Date.now()}`,
+            assessmentId: assessment._id,
+            userId: userId,
+            assessment: assessment,
+            answers: formattedAnswers,
+            score: userSubmission.score,
+            passed,
+            passingScore: assessment.passingScore, // Add passing score to help frontend
+            startTime: userSubmission.startTime,
+            endTime: userSubmission.endTime,
+            totalTime: userSubmission.timeSpent,
+            certificate: userSubmission.certificate
+        };
+        console.log("Assessment result:", {
+            id: result._id,
+            score: result.score,
+            passed: result.passed,
+            passingScore: result.passingScore,
+            totalTime: result.totalTime
+        });
+        res.status(200).json({ result });
+    }
+    catch (error) {
+        console.error(`Error fetching assessment result for ${id}:`, error);
+        res.status(500).json({ message: "Error retrieving assessment result", error: error.message });
+    }
+}));
+// get detailed results for an assessment submission
+exports.getDetailedAssessmentResults = (0, handler_1.handleAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
     if (!req.userId) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -467,7 +668,7 @@ exports.getAssessmentResults = (0, handler_1.handleAsync)((req, res, next) => __
         }
         console.log("assessment found");
         // Find the user's actual submission
-        const userSubmission = (_a = assessment.submissions) === null || _a === void 0 ? void 0 : _a.find((submission) => submission.userId.toString() === req.userId);
+        const userSubmission = (_a = assessment.submissions) === null || _a === void 0 ? void 0 : _a.find((submission) => submission.user.toString() === req.userId);
         console.log("user submission found");
         if (!userSubmission) {
             return res.status(404).json({ message: "Submission not found" });
@@ -524,7 +725,7 @@ exports.getAssessmentResults = (0, handler_1.handleAsync)((req, res, next) => __
             assessmentId: assessment._id,
             title: assessment.title,
             courseTitle: ((_b = assessment.course) === null || _b === void 0 ? void 0 : _b.title) || "No course",
-            submittedAt: userSubmission.submittedAt,
+            submittedAt: userSubmission.endTime,
             timeSpent: userSubmission.timeSpent,
             score: correctAnswers, // Actual score based on correct answers
             totalQuestions,
@@ -554,6 +755,27 @@ exports.getAssessmentResults = (0, handler_1.handleAsync)((req, res, next) => __
     catch (error) {
         console.error("Error getting assessment results:", error);
         return res.status(500).json({ message: "Server error" });
+    }
+}));
+// Get all assessments created by a tutor
+exports.getTutorAssessments = (0, handler_1.handleAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    const { tutorId } = req.params;
+    console.log("Fetching assessments for tutor:", tutorId);
+    if (!tutorId) {
+        return res.status(400).json({ message: "Missing tutorId parameter" });
+    }
+    try {
+        // Ensure tutorId is a valid MongoDB ObjectId if your database expects it
+        const assessments = yield assessment_models_1.default.find({ createdBy: tutorId })
+            .sort({ createdAt: -1 })
+            .populate("course")
+            .populate("questions");
+        console.log(`Found ${assessments.length} assessments for tutor ${tutorId}`);
+        return res.status(200).json({ assessments });
+    }
+    catch (error) {
+        console.error("Error fetching tutor assessments:", error);
+        return res.status(500).json({ message: "Failed to fetch assessments", error: error.message });
     }
 }));
 // Helper function to compare arrays

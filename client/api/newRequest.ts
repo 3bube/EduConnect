@@ -10,10 +10,13 @@ const newRequest = axios.create({
 
 newRequest.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      config.headers["Authorization"] = `Bearer ${token}`;
-      console.log("sending request to server with token", config.baseURL);
+    // Only access localStorage in browser environment
+    if (typeof window !== "undefined" && window.localStorage) {
+      const token = window.localStorage.getItem("token");
+      if (token) {
+        config.headers["Authorization"] = `Bearer ${token}`;
+        console.log("sending request to server with token", config.baseURL);
+      }
     }
     return config;
   },

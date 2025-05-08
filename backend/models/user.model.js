@@ -48,8 +48,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importStar(require("mongoose"));
 const bcrypt_1 = __importDefault(require("bcrypt"));
 // Log the available roles
-const VALID_ROLES = ["student", "tutor", "both"];
-console.log("Valid roles:", VALID_ROLES);
+const VALID_ROLES = ["student", "tutor", "both", "admin"];
 const UserSchema = new mongoose_1.Schema({
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },

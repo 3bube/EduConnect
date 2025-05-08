@@ -13,7 +13,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getCurrentUser = exports.signIn = exports.register = void 0;
+exports.updateCurrentUser = exports.getCurrentUser = exports.signIn = exports.register = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const user_model_1 = __importDefault(require("../models/user.model"));
 const handler_1 = require("../utils/handler");
@@ -77,4 +77,25 @@ exports.getCurrentUser = (0, handler_1.handleAsync)((req, res, next) => __awaite
         return res.status(404).json({ message: "User not found" });
     }
     res.status(200).json({ user });
+}));
+// Update current user profile
+exports.updateCurrentUser = (0, handler_1.handleAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    if (!req.userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
+    const updates = req.body;
+    try {
+        const user = yield user_model_1.default.findByIdAndUpdate(req.userId, updates, {
+            new: true,
+            runValidators: true,
+        }).select("-password");
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+        res.status(200).json({ user });
+    }
+    catch (error) {
+        console.error("Error updating user profile:", error);
+        res.status(500).json({ message: error.message || "Failed to update profile" });
+    }
 }));

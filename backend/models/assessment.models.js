@@ -13,11 +13,11 @@ const assessmentSchema = new mongoose_1.Schema({
     },
     questions: [{ type: mongoose_1.Schema.Types.ObjectId, ref: "Question" }],
     timeLimit: { type: Number, required: true }, // in minutes
-    dueDate: { type: String, required: true },
+    dueDate: { type: String, required: false }, // Make optional for draft assessments
     status: {
         type: String,
         required: true,
-        enum: ["not_started", "in_progress", "completed"],
+        enum: ["not_started", "in_progress", "completed", "published", "draft"],
         default: "not_started",
     },
     passingScore: { type: Number, required: true },
